@@ -1,13 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { PROJECTS_WITH_CHATS } from '../constants/uiData';
 
 export default function Sidebar({ onSelectProject, onNewConversation, onOpenFolderModal, activeProjectName }) {
     const [projectData, setProjectData] = useState(PROJECTS_WITH_CHATS);
-    const [visibleBudget, setVisibleBudget] = useState(10);
     const [selectedChatId, setSelectedChatId] = useState('c1');
-    const sentinelRef = useRef(null);
-
-    const totalAvailableChats = projectData.reduce((sum, p) => sum + p.chats.length, 0);
+    const [isProjectsSectionOpen, setIsProjectsSectionOpen] = useState(true);
+    const [collapsedProjects, setCollapsedProjects] = useState({});
 
     const handleNewChat = () => {
         try {
@@ -16,7 +14,6 @@ export default function Sidebar({ onSelectProject, onNewConversation, onOpenFold
                 id: "chat_" + Date.now(),
                 title: "New Session",
                 isPinned: false,
-                time: "just now",
                 active: true
             };
 
@@ -59,90 +56,30 @@ export default function Sidebar({ onSelectProject, onNewConversation, onOpenFold
         }
     };
 
-    const handleLoadMore = useCallback(() => {
+    const toggleProjectCollapse = (projectName) => {
         try {
-            console.log("Auto-loading next 10 chats across projects...");
-            setVisibleBudget((prev) => Math.min(prev + 10, totalAvailableChats));
+            console.log("Toggling project collapse for:", projectName);
+            setCollapsedProjects((prev) => ({
+                ...prev,
+                [projectName]: !prev[projectName]
+            }));
         } catch (error) {
-            console.error("Error loading more chats:", error);
-        }
-    }, [totalAvailableChats]);
-
-    const handleScroll = (e) => {
-        try {
-            const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-            if (scrollTop + clientHeight >= scrollHeight - 60) {
-                if (visibleBudget < totalAvailableChats) {
-                    handleLoadMore();
-                }
-            }
-        } catch (error) {
-            console.error("Error in scroll pagination:", error);
+            console.error("Error toggling project collapse:", error);
         }
     };
 
-    const handleWheel = (e) => {
+    const toggleAllProjectsSection = () => {
         try {
-            if (e.deltaY > 0) {
-                const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-                const isNearBottom = scrollTop + clientHeight >= scrollHeight - 60;
-                const hasNoOverflow = scrollHeight <= clientHeight;
-                if ((isNearBottom || hasNoOverflow) && visibleBudget < totalAvailableChats) {
-                    handleLoadMore();
-                }
-            }
+            console.log("Toggling entire Projects section:", !isProjectsSectionOpen);
+            setIsProjectsSectionOpen((prev) => !prev);
         } catch (error) {
-            console.error("Error in wheel pagination:", error);
+            console.error("Error toggling Projects section:", error);
         }
     };
 
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting && visibleBudget < totalAvailableChats) {
-                    handleLoadMore();
-                }
-            },
-            { threshold: 0.1 }
-        );
-
-        if (sentinelRef.current) {
-            observer.observe(sentinelRef.current);
-        }
-
-        return () => observer.disconnect();
-    }, [visibleBudget, totalAvailableChats, handleLoadMore]);
-
-    let remainingQuota = visibleBudget;
-    const computedProjects = [];
-    let standaloneConversations = [];
-    let loadedChatsCount = 0;
-
-    for (const project of projectData) {
-        const totalInProj = project.chats.length;
-        if (project.name === "No Project") {
-            if (remainingQuota > 0) {
-                const takeCount = Math.min(totalInProj, remainingQuota);
-                remainingQuota -= takeCount;
-                loadedChatsCount += takeCount;
-                standaloneConversations = project.chats.slice(0, takeCount);
-            }
-            continue;
-        }
-
-        if (remainingQuota > 0) {
-            const takeCount = Math.min(totalInProj, remainingQuota);
-            remainingQuota -= takeCount;
-            loadedChatsCount += takeCount;
-            computedProjects.push({
-                ...project,
-                visibleChats: project.chats.slice(0, takeCount),
-                ratioLabel: `${takeCount}/${totalInProj}`
-            });
-        }
-    }
-
-    const hasMore = loadedChatsCount < totalAvailableChats;
+    const projectFolders = projectData.filter((p) => p.name !== "No Project");
+    const unassignedProject = projectData.find((p) => p.name === "No Project");
+    const standaloneConversations = unassignedProject ? unassignedProject.chats : [];
 
     return (
         <aside
@@ -180,16 +117,19 @@ export default function Sidebar({ onSelectProject, onNewConversation, onOpenFold
 
             <div
                 id="sessions-list"
-                onScroll={handleScroll}
-                onWheel={handleWheel}
                 className="flex-1 min-h-0 overflow-y-auto px-2 space-y-4 py-2 custom-scrollbar text-xs"
             >
                 <div className="space-y-1.5">
                     <div className="px-2 flex items-center justify-between text-xs font-semibold text-[#94a3b8]">
-                        <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#F9F9FA] transition-colors">
+                        <button
+                            type="button"
+                            onClick={toggleAllProjectsSection}
+                            className="flex items-center gap-1.5 cursor-pointer hover:text-[#F9F9FA] transition-colors"
+                            title="Toggle all projects (open/close suitcase)"
+                        >
                             <span>Projects</span>
-                            <i className="fa-solid fa-chevron-down text-[8px] text-[#64748b]"></i>
-                        </div>
+                            <i className={`fa-solid fa-chevron-down text-[8px] text-[#64748b] transition-transform ${isProjectsSectionOpen ? '' : '-rotate-90'}`}></i>
+                        </button>
                         <div className="flex items-center gap-2 text-[#64748b]">
                             <button
                                 type="button"
@@ -210,69 +150,71 @@ export default function Sidebar({ onSelectProject, onNewConversation, onOpenFold
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        {computedProjects.map((project) => {
-                            const isCurrentProject = activeProjectName === project.name;
-                            return (
-                                <div key={project.id} className="space-y-1">
-                                    <div
-                                        onClick={() => onSelectProject && onSelectProject(project.name)}
-                                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
-                                            isCurrentProject
-                                                ? 'text-[#F9F9FA] font-medium'
-                                                : 'text-[#D1D1D6] hover:text-[#F9F9FA] hover:bg-[#1e1e22]'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            <svg className="w-3.5 h-3.5 text-[#94a3b8] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M3 4h18v4H3z" />
-                                                <path d="M4 8v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8" />
-                                                <path d="M10 12h4" />
-                                            </svg>
-                                            <span className="truncate">{project.name}</span>
+                    {isProjectsSectionOpen && (
+                        <div className="space-y-2">
+                            {projectFolders.map((project) => {
+                                const isCurrentProject = activeProjectName === project.name;
+                                const isCollapsed = Boolean(collapsedProjects[project.name]);
+                                return (
+                                    <div key={project.id} className="space-y-1">
+                                        <div
+                                            onClick={() => toggleProjectCollapse(project.name)}
+                                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                isCurrentProject
+                                                    ? 'text-[#F9F9FA] font-medium'
+                                                    : 'text-[#D1D1D6] hover:text-[#F9F9FA] hover:bg-[#1e1e22]'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2 truncate">
+                                                <svg className="w-3.5 h-3.5 text-[#94a3b8] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M3 4h18v4H3z" />
+                                                    <path d="M4 8v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8" />
+                                                    <path d="M10 12h4" />
+                                                </svg>
+                                                <span className="truncate">{project.name}</span>
+                                            </div>
+                                            <i className={`fa-solid fa-chevron-down text-[8px] text-[#64748b] transition-transform ${isCollapsed ? '-rotate-90' : ''}`}></i>
                                         </div>
-                                        <span className="text-[10px] text-[#64748b] font-mono px-1 py-0.5 rounded bg-[#1e1e22] border border-[#2e2e32]">
-                                            {project.ratioLabel}
-                                        </span>
-                                    </div>
 
-                                    <div className="pl-3 space-y-0.5">
-                                        {project.visibleChats.map((chat) => {
-                                            const isSelected = selectedChatId === chat.id;
-                                            return (
-                                                <div
-                                                    key={chat.id}
-                                                    onClick={() => handleChatClick(chat, project.name)}
-                                                    className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer transition-colors text-xs ${
-                                                        isSelected
-                                                            ? 'bg-[#28282c] text-[#F9F9FA] font-medium shadow-sm'
-                                                            : 'text-[#D1D1D6] hover:text-[#F9F9FA] hover:bg-[#222226]'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                                        <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-[#60a5fa]' : 'text-[#64748b]'}`} viewBox="0 0 24 24" fill="currentColor">
-                                                            <path d="M12 3c-4.97 0-9 3.58-9 8 0 1.68.59 3.24 1.61 4.52L3 21l5.72-1.52C9.8 19.8 10.87 20 12 20c4.97 0 9-3.58 9-8s-4.03-8-9-8z" />
-                                                        </svg>
-                                                        <span className="truncate">{chat.title}</span>
-                                                    </div>
+                                        {!isCollapsed && (
+                                            <div className="pl-3 space-y-0.5">
+                                                {project.chats.map((chat) => {
+                                                    const isSelected = selectedChatId === chat.id;
+                                                    return (
+                                                        <div
+                                                            key={chat.id}
+                                                            onClick={() => handleChatClick(chat, project.name)}
+                                                            className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer transition-colors text-xs ${
+                                                                isSelected
+                                                                    ? 'bg-[#28282c] text-[#F9F9FA] font-medium shadow-sm'
+                                                                    : 'text-[#D1D1D6] hover:text-[#F9F9FA] hover:bg-[#222226]'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                                                <svg className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-[#60a5fa]' : 'text-[#64748b]'}`} viewBox="0 0 24 24" fill="currentColor">
+                                                                    <path d="M12 3c-4.97 0-9 3.58-9 8 0 1.68.59 3.24 1.61 4.52L3 21l5.72-1.52C9.8 19.8 10.87 20 12 20c4.97 0 9-3.58 9-8s-4.03-8-9-8z" />
+                                                                </svg>
+                                                                <span className="truncate">{chat.title}</span>
+                                                            </div>
 
-                                                    <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px] text-[#64748b] ml-1.5">
-                                                        {chat.isPinned && (
-                                                            <i className="fa-solid fa-thumbtack text-[#f59e0b] text-[9px]"></i>
-                                                        )}
-                                                        {chat.dot && (
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]"></span>
-                                                        )}
-                                                        {chat.time && <span>{chat.time}</span>}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                            <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px] text-[#64748b] ml-1.5">
+                                                                {chat.isPinned && (
+                                                                    <i className="fa-solid fa-thumbtack text-[#f59e0b] text-[9px]"></i>
+                                                                )}
+                                                                {chat.dot && (
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]"></span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-1.5 pt-2 border-t border-[#222226]">
@@ -304,20 +246,12 @@ export default function Sidebar({ onSelectProject, onNewConversation, onOpenFold
                                         {chat.isPinned && (
                                             <i className="fa-solid fa-thumbtack text-[#f59e0b] text-[9px]"></i>
                                         )}
-                                        {chat.time && <span>{chat.time}</span>}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
                 </div>
-
-                {hasMore && (
-                    <div ref={sentinelRef} className="py-2 text-center text-[#64748b] text-[10px]">
-                        <i className="fa-solid fa-angles-down text-[#60a5fa] mr-1"></i>
-                        <span>Scroll for more (+10)</span>
-                    </div>
-                )}
             </div>
         </aside>
     );

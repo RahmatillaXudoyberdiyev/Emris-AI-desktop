@@ -45,22 +45,7 @@ export default function CenterWorkspace({ currentProject, onSelectProject, onOpe
 
     return (
         <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar bg-[#131314]">
-            <div className="w-full max-w-3xl flex flex-col items-center text-center">
-                <div className="w-12 h-12 rounded-2xl bg-[#1c1c1f] border border-[#2e2e32] flex items-center justify-center shadow-lg mb-4 p-2">
-                    <img
-                        src="/favicon-32x32.png"
-                        alt="Emris AI"
-                        className="w-7 h-7 object-contain"
-                    />
-                </div>
-
-                <h2 className="text-xl font-bold text-[#F9F9FA] mb-2 tracking-tight">
-                    Nima yaratmoqchisiz yoki qanday vazifani hal qilmoqchisiz?
-                </h2>
-                <p className="text-xs text-[#94a3b8] max-w-lg mb-8 leading-relaxed">
-                    Savollar bering, dasturiy loyihalar yarating, tahliliy maqolalar yozing yoki avtonom agentlardan foydalaning.
-                </p>
-
+            <div className="w-full max-w-3xl flex flex-col justify-center">
                 <div className="w-full text-left">
                     <ProjectDropdown
                         selectedProject={currentProject}
