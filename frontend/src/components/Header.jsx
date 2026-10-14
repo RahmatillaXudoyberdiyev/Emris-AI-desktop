@@ -12,29 +12,28 @@ export default function Header({ currentProject }) {
     return (
         <header className="h-14 border-b border-[#26262a] bg-[#151515] px-5 flex items-center justify-between flex-shrink-0 z-20 select-none">
             <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                    <img
-                        src="/favicon-32x32.png"
-                        alt="Emris AI"
-                        className="w-6 h-6 rounded-md object-contain"
-                    />
-                    <span className="font-bold text-sm tracking-tight text-[#ffffff]">
-                        Emris AI Dekstop App
-                    </span>
-                    <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-[#2563eb]/20 text-[#60a5fa] border border-[#2563eb]/30">
-                        v1.1 Beta
-                    </span>
-                </div>
-
-                <span className="text-[#64748b]">/</span>
-
                 <button
                     type="button"
                     onClick={() => handleHeaderAction('select_workspace')}
-                    className="text-xs text-[#f1f5f9] hover:text-[#ffffff] flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition cursor-pointer"
+                    className="text-xs text-[#f1f5f9] hover:text-[#ffffff] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition-colors cursor-pointer"
                 >
                     <i className="fa-solid fa-folder text-[#f59e0b]"></i>
-                    <span className="font-medium">{currentProject || 'sandbox_test'}</span>
+                    <span className="font-medium">{currentProject || 'No Project'}</span>
+                </button>
+
+                <span className="text-[#64748b]">/</span>
+
+                <span className="text-xs font-medium text-[#cbd5e1]">
+                    New Session
+                </span>
+
+                <button
+                    type="button"
+                    onClick={() => handleHeaderAction('rename_session')}
+                    className="text-[#64748b] hover:text-[#cbd5e1] text-xs p-1 cursor-pointer transition-colors"
+                    title="Rename Session"
+                >
+                    <i className="fa-solid fa-pen text-[10px]"></i>
                 </button>
             </div>
 
@@ -42,7 +41,7 @@ export default function Header({ currentProject }) {
                 <button
                     type="button"
                     onClick={() => handleHeaderAction('language')}
-                    className="flex items-center gap-1.5 bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] rounded-lg px-2.5 py-1.5 text-xs text-[#f1f5f9] transition cursor-pointer"
+                    className="flex items-center gap-1.5 bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] rounded-lg px-2.5 py-1.5 text-xs text-[#f1f5f9] transition-colors cursor-pointer"
                 >
                     <svg className="w-4 h-3 rounded-xs flex-shrink-0" viewBox="0 0 1000 500">
                         <defs>
@@ -79,7 +78,7 @@ export default function Header({ currentProject }) {
                 <button
                     type="button"
                     onClick={() => handleHeaderAction('api_keys')}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#cbd5e1] hover:text-[#ffffff] text-xs transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#cbd5e1] hover:text-[#ffffff] text-xs transition-colors cursor-pointer"
                 >
                     <i className="fa-solid fa-key text-[#f59e0b] text-xs"></i>
                     <span>API Kalitlar</span>
