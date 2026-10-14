@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PROJECTS_WITH_CHATS } from '../constants/uiData';
 
 export default function Sidebar({ onSelectProject, onNewConversation, activeProjectName }) {
     const [projectData, setProjectData] = useState(PROJECTS_WITH_CHATS);
     const [visibleBudget, setVisibleBudget] = useState(10);
     const [selectedChatId, setSelectedChatId] = useState('c1');
+    const sentinelRef = useRef(null);
 
     const totalAvailableChats = projectData.reduce((sum, p) => sum + p.chats.length, 0);
 
     const handleNewChat = () => {
         try {
-            console.log("New conversation triggered: adding to No Project and resetting project state");
+            console.log("New conversation triggered: resetting project to No Project");
             const newChat = {
                 id: "chat_" + Date.now(),
                 title: "New Session",
@@ -58,27 +59,59 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
         }
     };
 
-    const handleLoadMore = () => {
+    const handleLoadMore = useCallback(() => {
         try {
-            console.log("Loading 10 more chats across projects...");
+            console.log("Auto-loading next 10 chats across projects...");
             setVisibleBudget((prev) => Math.min(prev + 10, totalAvailableChats));
         } catch (error) {
             console.error("Error loading more chats:", error);
         }
-    };
+    }, [totalAvailableChats]);
 
     const handleScroll = (e) => {
         try {
             const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-            if (scrollTop + clientHeight >= scrollHeight - 30) {
+            if (scrollTop + clientHeight >= scrollHeight - 60) {
                 if (visibleBudget < totalAvailableChats) {
                     handleLoadMore();
                 }
             }
         } catch (error) {
-            console.error("Error in scroll pagination:", error);
+            console.error("Error handling scroll event:", error);
         }
     };
+
+    const handleWheel = (e) => {
+        try {
+            if (e.deltaY > 0) {
+                const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+                const isNearBottom = scrollTop + clientHeight >= scrollHeight - 60;
+                const hasNoOverflow = scrollHeight <= clientHeight;
+                if ((isNearBottom || hasNoOverflow) && visibleBudget < totalAvailableChats) {
+                    handleLoadMore();
+                }
+            }
+        } catch (error) {
+            console.error("Error handling wheel event:", error);
+        }
+    };
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && visibleBudget < totalAvailableChats) {
+                    handleLoadMore();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (sentinelRef.current) {
+            observer.observe(sentinelRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, [visibleBudget, totalAvailableChats, handleLoadMore]);
 
     let remainingQuota = visibleBudget;
     const computedProjects = [];
@@ -136,32 +169,6 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
                 </button>
             </div>
 
-            <div className="px-2 py-1 space-y-0.5 text-xs">
-                <button
-                    type="button"
-                    className="w-full px-2.5 py-1.5 rounded-lg text-[#cbd5e1] hover:text-[#ffffff] hover:bg-[#222226] transition-colors flex items-center gap-2.5 text-left cursor-pointer"
-                >
-                    <i className="fa-regular fa-clock text-[#94a3b8] text-xs w-4 text-center"></i>
-                    <span>Conversation History</span>
-                </button>
-
-                <button
-                    type="button"
-                    className="w-full px-2.5 py-1.5 rounded-lg text-[#cbd5e1] hover:text-[#ffffff] hover:bg-[#222226] transition-colors flex items-center gap-2.5 text-left cursor-pointer"
-                >
-                    <i className="fa-regular fa-hourglass-half text-[#94a3b8] text-xs w-4 text-center"></i>
-                    <span>Automations</span>
-                </button>
-
-                <button
-                    type="button"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#222226] text-[#ffffff] transition-colors flex items-center gap-2.5 text-left cursor-pointer"
-                >
-                    <i className="fa-solid fa-sliders text-[#cbd5e1] text-xs w-4 text-center"></i>
-                    <span>Customizations</span>
-                </button>
-            </div>
-
             <div className="px-4 pt-3 pb-1.5 flex items-center justify-between text-[11px] font-semibold tracking-wider text-[#94a3b8] uppercase">
                 <span>Projects</span>
                 <span className="text-[10px] text-[#64748b]">
@@ -172,6 +179,7 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
             <div
                 id="sessions-list"
                 onScroll={handleScroll}
+                onWheel={handleWheel}
                 className="flex-1 min-h-0 overflow-y-auto px-2 space-y-2 py-1 custom-scrollbar text-xs"
             >
                 {computedProjects.map((project) => {
@@ -235,14 +243,10 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
                 })}
 
                 {hasMore && (
-                    <button
-                        type="button"
-                        onClick={handleLoadMore}
-                        className="w-full py-2 px-3 my-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] text-[#94a3b8] hover:text-[#f1f5f9] border border-[#2e2e32] transition-colors flex items-center justify-center gap-2 text-[11px] font-medium cursor-pointer"
-                    >
-                        <i className="fa-solid fa-angles-down text-[#60a5fa] text-[10px]"></i>
-                        <span>Ko'proq yuklash (+10)</span>
-                    </button>
+                    <div ref={sentinelRef} className="py-2 text-center text-[#64748b] text-[10px]">
+                        <i className="fa-solid fa-angles-down text-[#60a5fa] mr-1"></i>
+                        <span>Scroll for more (+10)</span>
+                    </div>
                 )}
             </div>
         </aside>
