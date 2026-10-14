@@ -1,0 +1,185 @@
+import React, { useState } from 'react';
+import ProjectDropdown from './ProjectDropdown';
+import { MODEL_OPTIONS } from '../constants/uiData';
+
+export default function CenterWorkspace({ currentProject, onSelectProject }) {
+    const [promptText, setPromptText] = useState('');
+    const [selectedTab, setSelectedTab] = useState('work');
+    const [selectedModel, setSelectedModel] = useState('gemini-3.5-flash-lite');
+    const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+
+    const handleChatTabClick = () => {
+        try {
+            console.log("Chat tab clicked: opening suniyintellekt.uz in default browser");
+            const targetUrl = 'https://suniyintellekt.uz';
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external) {
+                window.pywebview.api.open_external(targetUrl);
+            } else {
+                window.open(targetUrl, '_blank');
+            }
+        } catch (error) {
+            console.error("Failed to open external browser:", error);
+            window.open('https://suniyintellekt.uz', '_blank');
+        }
+    };
+
+    const handleWorkTabClick = () => {
+        try {
+            console.log("Work tab active");
+            setSelectedTab('work');
+        } catch (error) {
+            console.error("Error setting work tab:", error);
+        }
+    };
+
+    const handleFormSubmit = (e) => {
+        try {
+            e.preventDefault();
+            console.log("Prompt submitted in project", currentProject, ":", promptText);
+        } catch (error) {
+            console.error("Error submitting prompt:", error);
+        }
+    };
+
+    const currentModelLabel = MODEL_OPTIONS.find((m) => m.value === selectedModel)?.label || 'Gemini 3.5 Flash Lite';
+
+    return (
+        <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar">
+            <div className="w-full max-w-3xl flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-2xl bg-[#1c1c1f] border border-[#2a2a2e] flex items-center justify-center shadow-lg mb-4 p-2">
+                    <img
+                        src="/favicon-32x32.png"
+                        alt="Emris AI"
+                        className="w-7 h-7 object-contain"
+                    />
+                </div>
+
+                <h2 className="text-xl font-bold text-white mb-2">
+                    Nima yaratmoqchisiz yoki qanday vazifani hal qilmoqchisiz?
+                </h2>
+                <p className="text-xs text-slate-400 max-w-lg mb-8 leading-relaxed">
+                    Savollar bering, dasturiy loyihalar yarating, tahliliy maqolalar yozing yoki avtonom agentlardan foydalaning.
+                </p>
+
+                <div className="w-full text-left">
+                    <ProjectDropdown
+                        selectedProject={currentProject}
+                        onSelectProject={onSelectProject}
+                    />
+
+                    <form
+                        onSubmit={handleFormSubmit}
+                        className="relative flex items-center bg-[#17171a] border border-[#28282c] focus-within:border-blue-500/80 rounded-2xl p-2 shadow-2xl transition"
+                    >
+                        <button
+                            type="button"
+                            onClick={() => console.log("Context add button clicked")}
+                            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-[#222226] transition flex-shrink-0 cursor-pointer mr-1.5"
+                            title="Add files or context"
+                        >
+                            <i className="fa-solid fa-plus text-xs"></i>
+                        </button>
+
+                        <div className="flex items-center bg-[#1f1f23] rounded-xl p-0.5 border border-[#2a2a2e] flex-shrink-0 mr-2 text-xs">
+                            <button
+                                type="button"
+                                onClick={handleChatTabClick}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                    selectedTab === 'chat'
+                                        ? 'bg-blue-600 text-white font-medium shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                                title="Opens suniyintellekt.uz in default browser"
+                            >
+                                <i className="fa-regular fa-comment-dots text-blue-400 text-xs"></i>
+                                <span>Chat</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleWorkTabClick}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                    selectedTab === 'work'
+                                        ? 'bg-[#29292e] text-white font-medium shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                <i className="fa-solid fa-briefcase text-amber-400 text-xs"></i>
+                                <span>Work</span>
+                            </button>
+                        </div>
+
+                        <input
+                            type="text"
+                            value={promptText}
+                            onChange={(e) => setPromptText(e.target.value)}
+                            placeholder="Bugun sizga qanday yordam bera olaman?"
+                            className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-slate-100 placeholder-slate-500 px-2 py-2 focus:outline-none"
+                        />
+
+                        <div className="relative flex-shrink-0 ml-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#202024] hover:bg-[#28282c] border border-[#2c2c30] text-slate-200 text-xs font-medium transition cursor-pointer"
+                            >
+                                <span className="truncate max-w-[140px]">{currentModelLabel}</span>
+                                <i className="fa-solid fa-chevron-down text-[8px] text-slate-400"></i>
+                            </button>
+
+                            {isModelMenuOpen && (
+                                <div className="absolute right-0 bottom-full mb-2 w-52 bg-[#18181b] border border-[#2a2a2e] rounded-xl shadow-2xl py-1 z-50 text-xs">
+                                    {MODEL_OPTIONS.map((m) => (
+                                        <button
+                                            key={m.value}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedModel(m.value);
+                                                setIsModelMenuOpen(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-1.5 hover:bg-[#242428] transition ${
+                                                selectedModel === m.value ? 'text-blue-400 font-medium' : 'text-slate-300'
+                                            }`}
+                                        >
+                                            {m.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </form>
+
+                    <div className="text-[10px] text-center text-slate-500 mt-3 leading-relaxed">
+                        Saytdan foydalanish orqali siz{' '}
+                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-slate-400 hover:underline">
+                            Foydalanish shartlari
+                        </a>{' '}
+                        va{' '}
+                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-slate-400 hover:underline">
+                            Maxfiylik siyosatiga
+                        </a>{' '}
+                        rozilik bildirasiz. • Sayt asoschisi:{' '}
+                        <a
+                            href="https://rahmatilla.uz"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-400 hover:underline"
+                        >
+                            Rahmatilla.uz
+                        </a>{' '}
+                        (
+                        <a
+                            href="https://t.me/rahmatilla_uz"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-400 hover:underline"
+                        >
+                            @rahmatilla_uz
+                        </a>
+                        ). Modellar xato qilishi mumkin. • © 2026
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

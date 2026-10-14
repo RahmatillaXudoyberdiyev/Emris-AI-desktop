@@ -2,6 +2,7 @@ import io
 import os
 import socket
 import sys
+import webbrowser
 from pathlib import Path
 import webview
 
@@ -9,6 +10,17 @@ if sys.stdout is None:
     sys.stdout = io.StringIO()
 if sys.stderr is None:
     sys.stderr = io.StringIO()
+
+
+class DesktopBridge:
+    def open_external(self, url: str):
+        try:
+            print(f"[Desktop] Opening external URL in browser: {url}")
+            webbrowser.open(url)
+            return True
+        except Exception as exc:
+            print(f"[Desktop] Error opening external URL: {exc}")
+            return False
 
 
 def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
@@ -63,14 +75,16 @@ def launch_desktop_window():
         print(f"[Desktop] Opening Emris AI Desktop window with target: {target_url}")
 
         use_http_server = not target_url.startswith("http://") and not target_url.startswith("https://")
+        bridge_api = DesktopBridge()
 
         webview.create_window(
-            title="Emris AI — v1.9 Beta",
+            title="Emris AI Dekstop App — v1.1 Beta",
             url=target_url,
             width=1360,
             height=860,
             min_size=(960, 640),
-            background_color="#131314"
+            background_color="#131314",
+            js_api=bridge_api
         )
         webview.start(http_server=use_http_server)
     except Exception as exc:
