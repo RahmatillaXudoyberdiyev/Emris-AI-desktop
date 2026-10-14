@@ -1,48 +1,67 @@
 import React, { useState } from 'react';
-import { INITIAL_ALL_CHATS } from '../constants/uiData';
+import { PROJECTS_WITH_CHATS } from '../constants/uiData';
 
 export default function Sidebar({ onSelectProject, onNewConversation, activeProjectName }) {
-    const [allChats, setAllChats] = useState(INITIAL_ALL_CHATS);
-    const [visibleCount, setVisibleCount] = useState(10);
-    const [selectedChatId, setSelectedChatId] = useState('c3');
+    const [projectData, setProjectData] = useState(PROJECTS_WITH_CHATS);
+    const [visibleBudget, setVisibleBudget] = useState(10);
+    const [selectedChatId, setSelectedChatId] = useState('c1');
+
+    const totalAvailableChats = projectData.reduce((sum, p) => sum + p.chats.length, 0);
 
     const handleNewChat = () => {
         try {
-            console.log("New conversation triggered: resetting project to No Project");
+            console.log("New conversation triggered: adding to No Project and resetting project state");
             const newChat = {
                 id: "chat_" + Date.now(),
                 title: "New Session",
                 isPinned: false,
-                project: "No Project",
                 time: "just now",
                 active: true
             };
-            setAllChats((prev) => [newChat, ...prev]);
+
+            setProjectData((prev) => {
+                const updated = [...prev];
+                const noProjIndex = updated.findIndex((p) => p.name === "No Project");
+                if (noProjIndex !== -1) {
+                    updated[noProjIndex] = {
+                        ...updated[noProjIndex],
+                        chats: [newChat, ...updated[noProjIndex].chats]
+                    };
+                } else {
+                    updated.unshift({
+                        id: "proj_no_project",
+                        name: "No Project",
+                        chats: [newChat]
+                    });
+                }
+                return updated;
+            });
+
             setSelectedChatId(newChat.id);
             if (onNewConversation) {
                 onNewConversation();
             }
         } catch (error) {
-            console.error("Error creating new chat:", error);
+            console.error("Error creating new conversation:", error);
         }
     };
 
-    const handleChatClick = (chat) => {
+    const handleChatClick = (chat, projectName) => {
         try {
-            console.log("Selected chat:", chat.title, "in project:", chat.project);
+            console.log("Selected chat:", chat.title, "in project:", projectName);
             setSelectedChatId(chat.id);
             if (onSelectProject) {
-                onSelectProject(chat.project || 'No Project');
+                onSelectProject(projectName || 'No Project');
             }
         } catch (error) {
-            console.error("Error selecting chat:", error);
+            console.error("Error clicking chat item:", error);
         }
     };
 
     const handleLoadMore = () => {
         try {
-            console.log("Loading 10 more chats in projects...");
-            setVisibleCount((prev) => Math.min(prev + 10, allChats.length));
+            console.log("Loading 10 more chats across projects...");
+            setVisibleBudget((prev) => Math.min(prev + 10, totalAvailableChats));
         } catch (error) {
             console.error("Error loading more chats:", error);
         }
@@ -52,26 +71,36 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
         try {
             const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
             if (scrollTop + clientHeight >= scrollHeight - 30) {
-                if (visibleCount < allChats.length) {
+                if (visibleBudget < totalAvailableChats) {
                     handleLoadMore();
                 }
             }
         } catch (error) {
-            console.error("Error handling scroll pagination:", error);
+            console.error("Error in scroll pagination:", error);
         }
     };
 
-    const displayedChats = allChats.slice(0, visibleCount);
-    const hasMore = visibleCount < allChats.length;
+    let remainingQuota = visibleBudget;
+    const computedProjects = [];
+    let loadedChatsCount = 0;
 
-    const projectGroups = displayedChats.reduce((acc, chat) => {
-        const projName = chat.project || 'No Project';
-        if (!acc[projName]) {
-            acc[projName] = [];
+    for (const project of projectData) {
+        const totalInProj = project.chats.length;
+        if (remainingQuota > 0) {
+            const takeCount = Math.min(totalInProj, remainingQuota);
+            remainingQuota -= takeCount;
+            loadedChatsCount += takeCount;
+            computedProjects.push({
+                ...project,
+                visibleChats: project.chats.slice(0, takeCount),
+                ratioLabel: `${takeCount}/${totalInProj}`
+            });
+        } else {
+            break;
         }
-        acc[projName].push(chat);
-        return acc;
-    }, {});
+    }
+
+    const hasMore = loadedChatsCount < totalAvailableChats;
 
     return (
         <aside
@@ -135,7 +164,9 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
 
             <div className="px-4 pt-3 pb-1.5 flex items-center justify-between text-[11px] font-semibold tracking-wider text-[#94a3b8] uppercase">
                 <span>Projects</span>
-                <span className="text-[10px] text-[#64748b]">{allChats.length}</span>
+                <span className="text-[10px] text-[#64748b]">
+                    {loadedChatsCount} / {totalAvailableChats}
+                </span>
             </div>
 
             <div
@@ -143,12 +174,12 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
                 onScroll={handleScroll}
                 className="flex-1 min-h-0 overflow-y-auto px-2 space-y-2 py-1 custom-scrollbar text-xs"
             >
-                {Object.entries(projectGroups).map(([projectName, chats]) => {
-                    const isCurrentProject = activeProjectName === projectName;
+                {computedProjects.map((project) => {
+                    const isCurrentProject = activeProjectName === project.name;
                     return (
-                        <div key={projectName} className="space-y-0.5">
+                        <div key={project.id} className="space-y-0.5">
                             <div
-                                onClick={() => onSelectProject && onSelectProject(projectName)}
+                                onClick={() => onSelectProject && onSelectProject(project.name)}
                                 className={`flex items-center justify-between px-2 py-1 rounded-md cursor-pointer transition-colors ${
                                     isCurrentProject
                                         ? 'text-[#ffffff] font-medium'
@@ -157,18 +188,20 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
                             >
                                 <div className="flex items-center gap-2 truncate">
                                     <i className="fa-regular fa-folder text-[#94a3b8] text-xs"></i>
-                                    <span className="truncate">{projectName}</span>
+                                    <span className="truncate">{project.name}</span>
                                 </div>
-                                <span className="text-[10px] text-[#64748b]">{chats.length}</span>
+                                <span className="text-[10px] text-[#64748b] font-mono px-1.5 py-0.5 rounded bg-[#1e1e22] border border-[#2e2e32]">
+                                    {project.ratioLabel}
+                                </span>
                             </div>
 
                             <div className="pl-3 space-y-0.5">
-                                {chats.map((chat) => {
+                                {project.visibleChats.map((chat) => {
                                     const isSelected = selectedChatId === chat.id;
                                     return (
                                         <div
                                             key={chat.id}
-                                            onClick={() => handleChatClick(chat)}
+                                            onClick={() => handleChatClick(chat, project.name)}
                                             className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors text-xs ${
                                                 isSelected
                                                     ? 'bg-[#28282c] text-[#ffffff] font-medium'
