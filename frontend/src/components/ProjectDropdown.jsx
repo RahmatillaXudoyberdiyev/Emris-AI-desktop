@@ -52,23 +52,23 @@ export default function ProjectDropdown({ selectedProject, onSelectProject }) {
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-transparent hover:bg-[#1c1c1f] text-slate-300 hover:text-white text-xs font-medium transition cursor-pointer"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-transparent hover:bg-[#1e1e22] text-[#cbd5e1] hover:text-[#ffffff] text-xs font-medium transition cursor-pointer"
             >
-                <i className="fa-regular fa-folder text-slate-400"></i>
+                <i className="fa-regular fa-folder text-[#94a3b8]"></i>
                 <span>{selectedProject}</span>
-                <i className="fa-solid fa-chevron-down text-[9px] text-slate-500"></i>
+                <i className="fa-solid fa-chevron-down text-[9px] text-[#64748b]"></i>
             </button>
 
             {isOpen && (
-                <div className="absolute left-0 bottom-full mb-2 w-64 bg-[#141416] border border-[#26262a] rounded-2xl shadow-2xl p-2 z-50 text-xs text-slate-300 space-y-1">
+                <div className="absolute left-0 bottom-full mb-2 w-64 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-2 z-50 text-xs text-[#cbd5e1] space-y-1">
                     <div className="relative mb-1">
-                        <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-[11px]"></i>
+                        <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-[#64748b] text-[11px]"></i>
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search Projects"
-                            className="w-full bg-[#1c1c1f] border border-[#2a2a2e] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-[#141416] border border-[#2e2e32] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#ffffff] placeholder-[#64748b] focus:outline-none focus:border-[#2563eb]"
                         />
                     </div>
 
@@ -82,48 +82,48 @@ export default function ProjectDropdown({ selectedProject, onSelectProject }) {
                                     onClick={() => handleSelect(project)}
                                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition cursor-pointer ${
                                         isSelected
-                                            ? 'bg-[#222226] text-white font-medium'
-                                            : 'hover:bg-[#1a1a1d] text-slate-400 hover:text-slate-200'
+                                            ? 'bg-[#28282c] text-[#ffffff] font-medium'
+                                            : 'hover:bg-[#222226] text-[#94a3b8] hover:text-[#f1f5f9]'
                                     }`}
                                 >
                                     <div className="flex items-center gap-2 truncate">
-                                        <i className="fa-regular fa-folder text-slate-400 text-xs"></i>
+                                        <i className="fa-regular fa-folder text-[#94a3b8] text-xs"></i>
                                         <span className="truncate">{project.name}</span>
                                     </div>
                                     {isSelected && (
-                                        <i className="fa-solid fa-check text-blue-400 text-xs"></i>
+                                        <i className="fa-solid fa-check text-[#60a5fa] text-xs"></i>
                                     )}
                                 </button>
                             );
                         })}
                     </div>
 
-                    <div className="border-t border-[#222226] pt-1 space-y-0.5">
+                    <div className="border-t border-[#26262a] pt-1 space-y-0.5">
                         <button
                             type="button"
                             onClick={() => handleQuickAction('new_project')}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1a1a1d] transition text-left cursor-pointer"
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[#94a3b8] hover:text-[#ffffff] hover:bg-[#222226] transition text-left cursor-pointer"
                         >
-                            <i className="fa-solid fa-folder-plus text-slate-500 text-xs"></i>
+                            <i className="fa-solid fa-folder-plus text-[#64748b] text-xs"></i>
                             <span>New Project</span>
                         </button>
                         <button
                             type="button"
                             onClick={() => handleQuickAction('quick_start')}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1a1a1d] transition text-left cursor-pointer"
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[#94a3b8] hover:text-[#ffffff] hover:bg-[#222226] transition text-left cursor-pointer"
                         >
-                            <i className="fa-solid fa-bolt text-slate-500 text-xs"></i>
+                            <i className="fa-solid fa-bolt text-[#64748b] text-xs"></i>
                             <span>Quick Start</span>
                         </button>
                     </div>
 
-                    <div className="border-t border-[#222226] pt-1">
+                    <div className="border-t border-[#26262a] pt-1">
                         <button
                             type="button"
                             onClick={() => handleQuickAction('no_project')}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1a1a1d] transition text-left cursor-pointer"
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[#94a3b8] hover:text-[#ffffff] hover:bg-[#222226] transition text-left cursor-pointer"
                         >
-                            <i className="fa-regular fa-circle-xmark text-slate-500 text-xs"></i>
+                            <i className="fa-regular fa-circle-xmark text-[#64748b] text-xs"></i>
                             <span>No Project</span>
                         </button>
                     </div>

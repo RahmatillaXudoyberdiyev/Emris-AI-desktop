@@ -10,7 +10,7 @@ export default function Header({ currentProject }) {
     };
 
     return (
-        <header className="h-14 border-b border-[#222226] bg-[#141416]/95 backdrop-blur px-5 flex items-center justify-between flex-shrink-0 z-20 select-none">
+        <header className="h-14 border-b border-[#26262a] bg-[#151515] px-5 flex items-center justify-between flex-shrink-0 z-20 select-none">
             <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                     <img
@@ -18,22 +18,22 @@ export default function Header({ currentProject }) {
                         alt="Emris AI"
                         className="w-6 h-6 rounded-md object-contain"
                     />
-                    <span className="font-bold text-sm tracking-tight text-white">
+                    <span className="font-bold text-sm tracking-tight text-[#ffffff]">
                         Emris AI Dekstop App
                     </span>
-                    <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-[#2563eb]/20 text-[#60a5fa] border border-[#2563eb]/30">
                         v1.1 Beta
                     </span>
                 </div>
 
-                <span className="text-slate-600">/</span>
+                <span className="text-[#64748b]">/</span>
 
                 <button
                     type="button"
                     onClick={() => handleHeaderAction('select_workspace')}
-                    className="text-xs text-slate-300 hover:text-white flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1c1c1f] hover:bg-[#25252a] border border-[#2a2a2e] transition cursor-pointer"
+                    className="text-xs text-[#f1f5f9] hover:text-[#ffffff] flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition cursor-pointer"
                 >
-                    <i className="fa-solid fa-folder text-amber-400"></i>
+                    <i className="fa-solid fa-folder text-[#f59e0b]"></i>
                     <span className="font-medium">{currentProject || 'sandbox_test'}</span>
                 </button>
             </div>
@@ -42,7 +42,7 @@ export default function Header({ currentProject }) {
                 <button
                     type="button"
                     onClick={() => handleHeaderAction('language')}
-                    className="flex items-center gap-1.5 bg-[#1c1c1f] hover:bg-[#25252a] border border-[#2a2a2e] rounded-lg px-2.5 py-1.5 text-xs text-slate-200 transition cursor-pointer"
+                    className="flex items-center gap-1.5 bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] rounded-lg px-2.5 py-1.5 text-xs text-[#f1f5f9] transition cursor-pointer"
                 >
                     <svg className="w-4 h-3 rounded-xs flex-shrink-0" viewBox="0 0 1000 500">
                         <defs>
@@ -73,15 +73,15 @@ export default function Header({ currentProject }) {
                         <use href="#uz_flag_hdr" x="320" y="128" />
                         <use href="#uz_flag_hdr" x="368" y="128" />
                     </svg>
-                    <i className="fa-solid fa-chevron-down text-[8px] text-slate-400"></i>
+                    <i className="fa-solid fa-chevron-down text-[8px] text-[#94a3b8]"></i>
                 </button>
 
                 <button
                     type="button"
                     onClick={() => handleHeaderAction('api_keys')}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1c1c1f] hover:bg-[#25252a] border border-[#2a2a2e] text-slate-300 hover:text-white text-xs transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#cbd5e1] hover:text-[#ffffff] text-xs transition cursor-pointer"
                 >
-                    <i className="fa-solid fa-key text-amber-400 text-xs"></i>
+                    <i className="fa-solid fa-key text-[#f59e0b] text-xs"></i>
                     <span>API Kalitlar</span>
                 </button>
             </div>

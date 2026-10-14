@@ -44,9 +44,9 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
     const currentModelLabel = MODEL_OPTIONS.find((m) => m.value === selectedModel)?.label || 'Gemini 3.5 Flash Lite';
 
     return (
-        <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar">
+        <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar bg-[#131314]">
             <div className="w-full max-w-3xl flex flex-col items-center text-center">
-                <div className="w-12 h-12 rounded-2xl bg-[#1c1c1f] border border-[#2a2a2e] flex items-center justify-center shadow-lg mb-4 p-2">
+                <div className="w-12 h-12 rounded-2xl bg-[#1c1c1f] border border-[#2e2e32] flex items-center justify-center shadow-lg mb-4 p-2">
                     <img
                         src="/favicon-32x32.png"
                         alt="Emris AI"
@@ -54,10 +54,10 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                     />
                 </div>
 
-                <h2 className="text-xl font-bold text-white mb-2">
+                <h2 className="text-xl font-bold text-[#ffffff] mb-2">
                     Nima yaratmoqchisiz yoki qanday vazifani hal qilmoqchisiz?
                 </h2>
-                <p className="text-xs text-slate-400 max-w-lg mb-8 leading-relaxed">
+                <p className="text-xs text-[#94a3b8] max-w-lg mb-8 leading-relaxed">
                     Savollar bering, dasturiy loyihalar yarating, tahliliy maqolalar yozing yoki avtonom agentlardan foydalaning.
                 </p>
 
@@ -69,29 +69,29 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
 
                     <form
                         onSubmit={handleFormSubmit}
-                        className="relative flex items-center bg-[#17171a] border border-[#28282c] focus-within:border-blue-500/80 rounded-2xl p-2 shadow-2xl transition"
+                        className="relative flex items-center bg-[#1c1c1f] border border-[#2e2e32] focus-within:border-[#2563eb] rounded-2xl p-2 shadow-2xl transition"
                     >
                         <button
                             type="button"
                             onClick={() => console.log("Context add button clicked")}
-                            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-[#222226] transition flex-shrink-0 cursor-pointer mr-1.5"
+                            className="p-2 text-[#94a3b8] hover:text-[#ffffff] rounded-xl hover:bg-[#222226] transition flex-shrink-0 cursor-pointer mr-1.5"
                             title="Add files or context"
                         >
                             <i className="fa-solid fa-plus text-xs"></i>
                         </button>
 
-                        <div className="flex items-center bg-[#1f1f23] rounded-xl p-0.5 border border-[#2a2a2e] flex-shrink-0 mr-2 text-xs">
+                        <div className="flex items-center bg-[#1e1e22] rounded-xl p-0.5 border border-[#2e2e32] flex-shrink-0 mr-2 text-xs">
                             <button
                                 type="button"
                                 onClick={handleChatTabClick}
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer ${
                                     selectedTab === 'chat'
-                                        ? 'bg-blue-600 text-white font-medium shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-200'
+                                        ? 'bg-[#2563eb] text-[#ffffff] font-medium shadow-sm'
+                                        : 'text-[#94a3b8] hover:text-[#f1f5f9]'
                                 }`}
                                 title="Opens suniyintellekt.uz in default browser"
                             >
-                                <i className="fa-regular fa-comment-dots text-blue-400 text-xs"></i>
+                                <i className="fa-regular fa-comment-dots text-[#60a5fa] text-xs"></i>
                                 <span>Chat</span>
                             </button>
 
@@ -100,11 +100,11 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                                 onClick={handleWorkTabClick}
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer ${
                                     selectedTab === 'work'
-                                        ? 'bg-[#29292e] text-white font-medium shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-200'
+                                        ? 'bg-[#28282c] text-[#ffffff] font-medium shadow-sm border border-[#2e2e32]'
+                                        : 'text-[#94a3b8] hover:text-[#f1f5f9]'
                                 }`}
                             >
-                                <i className="fa-solid fa-briefcase text-amber-400 text-xs"></i>
+                                <i className="fa-solid fa-briefcase text-[#f59e0b] text-xs"></i>
                                 <span>Work</span>
                             </button>
                         </div>
@@ -114,21 +114,21 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                             value={promptText}
                             onChange={(e) => setPromptText(e.target.value)}
                             placeholder="Bugun sizga qanday yordam bera olaman?"
-                            className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-slate-100 placeholder-slate-500 px-2 py-2 focus:outline-none"
+                            className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#f1f5f9] placeholder-[#64748b] px-2 py-2 focus:outline-none"
                         />
 
                         <div className="relative flex-shrink-0 ml-2">
                             <button
                                 type="button"
                                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#202024] hover:bg-[#28282c] border border-[#2c2c30] text-slate-200 text-xs font-medium transition cursor-pointer"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#f1f5f9] text-xs font-medium transition cursor-pointer"
                             >
                                 <span className="truncate max-w-[140px]">{currentModelLabel}</span>
-                                <i className="fa-solid fa-chevron-down text-[8px] text-slate-400"></i>
+                                <i className="fa-solid fa-chevron-down text-[8px] text-[#94a3b8]"></i>
                             </button>
 
                             {isModelMenuOpen && (
-                                <div className="absolute right-0 bottom-full mb-2 w-52 bg-[#18181b] border border-[#2a2a2e] rounded-xl shadow-2xl py-1 z-50 text-xs">
+                                <div className="absolute right-0 bottom-full mb-2 w-52 bg-[#1c1c1f] border border-[#2e2e32] rounded-xl shadow-2xl py-1 z-50 text-xs">
                                     {MODEL_OPTIONS.map((m) => (
                                         <button
                                             key={m.value}
@@ -137,8 +137,8 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                                                 setSelectedModel(m.value);
                                                 setIsModelMenuOpen(false);
                                             }}
-                                            className={`w-full text-left px-3 py-1.5 hover:bg-[#242428] transition ${
-                                                selectedModel === m.value ? 'text-blue-400 font-medium' : 'text-slate-300'
+                                            className={`w-full text-left px-3 py-1.5 hover:bg-[#222226] transition ${
+                                                selectedModel === m.value ? 'text-[#60a5fa] font-medium' : 'text-[#cbd5e1]'
                                             }`}
                                         >
                                             {m.label}
@@ -149,13 +149,13 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                         </div>
                     </form>
 
-                    <div className="text-[10px] text-center text-slate-500 mt-3 leading-relaxed">
+                    <div className="text-[10px] text-center text-[#64748b] mt-3 leading-relaxed">
                         Saytdan foydalanish orqali siz{' '}
-                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-slate-400 hover:underline">
+                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-[#94a3b8] hover:underline">
                             Foydalanish shartlari
                         </a>{' '}
                         va{' '}
-                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-slate-400 hover:underline">
+                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-[#94a3b8] hover:underline">
                             Maxfiylik siyosatiga
                         </a>{' '}
                         rozilik bildirasiz. • Sayt asoschisi:{' '}
@@ -163,7 +163,7 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                             href="https://rahmatilla.uz"
                             target="_blank"
                             rel="noreferrer"
-                            className="text-blue-400 hover:underline"
+                            className="text-[#60a5fa] hover:underline"
                         >
                             Rahmatilla.uz
                         </a>{' '}
@@ -172,7 +172,7 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                             href="https://t.me/rahmatilla_uz"
                             target="_blank"
                             rel="noreferrer"
-                            className="text-blue-400 hover:underline"
+                            className="text-[#60a5fa] hover:underline"
                         >
                             @rahmatilla_uz
                         </a>
