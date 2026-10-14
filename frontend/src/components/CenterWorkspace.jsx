@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ProjectDropdown from './ProjectDropdown';
 import { MODEL_OPTIONS } from '../constants/uiData';
 
-export default function CenterWorkspace({ currentProject, onSelectProject }) {
+export default function CenterWorkspace({ currentProject, onSelectProject, onOpenFolderModal }) {
     const [promptText, setPromptText] = useState('');
     const [selectedTab, setSelectedTab] = useState('work');
     const [selectedModel, setSelectedModel] = useState('gemini-3.5-flash-lite');
@@ -54,7 +54,7 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                     />
                 </div>
 
-                <h2 className="text-xl font-bold text-[#ffffff] mb-2">
+                <h2 className="text-xl font-bold text-[#F9F9FA] mb-2 tracking-tight">
                     Nima yaratmoqchisiz yoki qanday vazifani hal qilmoqchisiz?
                 </h2>
                 <p className="text-xs text-[#94a3b8] max-w-lg mb-8 leading-relaxed">
@@ -65,16 +65,17 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                     <ProjectDropdown
                         selectedProject={currentProject}
                         onSelectProject={onSelectProject}
+                        onOpenFolderModal={onOpenFolderModal}
                     />
 
                     <form
                         onSubmit={handleFormSubmit}
-                        className="relative flex items-center bg-[#1c1c1f] border border-[#2e2e32] focus-within:border-[#2563eb] rounded-2xl p-2 shadow-2xl transition"
+                        className="relative flex items-center bg-[#1c1c1f] border border-[#2e2e32] focus-within:border-[#2563eb] rounded-2xl p-2 shadow-2xl transition-colors"
                     >
                         <button
                             type="button"
                             onClick={() => console.log("Context add button clicked")}
-                            className="p-2 text-[#94a3b8] hover:text-[#ffffff] rounded-xl hover:bg-[#222226] transition flex-shrink-0 cursor-pointer mr-1.5"
+                            className="p-2 text-[#94a3b8] hover:text-[#F9F9FA] rounded-xl hover:bg-[#222226] transition-colors flex-shrink-0 cursor-pointer mr-1.5"
                             title="Add files or context"
                         >
                             <i className="fa-solid fa-plus text-xs"></i>
@@ -84,10 +85,10 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                             <button
                                 type="button"
                                 onClick={handleChatTabClick}
-                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                                     selectedTab === 'chat'
                                         ? 'bg-[#2563eb] text-[#ffffff] font-medium shadow-sm'
-                                        : 'text-[#94a3b8] hover:text-[#f1f5f9]'
+                                        : 'text-[#94a3b8] hover:text-[#F9F9FA]'
                                 }`}
                                 title="Opens suniyintellekt.uz in default browser"
                             >
@@ -98,10 +99,10 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                             <button
                                 type="button"
                                 onClick={handleWorkTabClick}
-                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                                     selectedTab === 'work'
-                                        ? 'bg-[#28282c] text-[#ffffff] font-medium shadow-sm border border-[#2e2e32]'
-                                        : 'text-[#94a3b8] hover:text-[#f1f5f9]'
+                                        ? 'bg-[#28282c] text-[#F9F9FA] font-medium shadow-sm border border-[#2e2e32]'
+                                        : 'text-[#94a3b8] hover:text-[#F9F9FA]'
                                 }`}
                             >
                                 <i className="fa-solid fa-briefcase text-[#f59e0b] text-xs"></i>
@@ -114,14 +115,14 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                             value={promptText}
                             onChange={(e) => setPromptText(e.target.value)}
                             placeholder="Bugun sizga qanday yordam bera olaman?"
-                            className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#f1f5f9] placeholder-[#64748b] px-2 py-2 focus:outline-none"
+                            className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#64748b] px-2 py-2 focus:outline-none"
                         />
 
                         <div className="relative flex-shrink-0 ml-2">
                             <button
                                 type="button"
                                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#f1f5f9] text-xs font-medium transition cursor-pointer"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#F9F9FA] text-xs font-medium transition-colors cursor-pointer"
                             >
                                 <span className="truncate max-w-[140px]">{currentModelLabel}</span>
                                 <i className="fa-solid fa-chevron-down text-[8px] text-[#94a3b8]"></i>
@@ -137,8 +138,8 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                                                 setSelectedModel(m.value);
                                                 setIsModelMenuOpen(false);
                                             }}
-                                            className={`w-full text-left px-3 py-2 hover:bg-[#222226] transition ${
-                                                selectedModel === m.value ? 'text-[#60a5fa] font-medium bg-[#28282c]' : 'text-[#cbd5e1]'
+                                            className={`w-full text-left px-3 py-2 hover:bg-[#222226] transition-colors ${
+                                                selectedModel === m.value ? 'text-[#60a5fa] font-medium bg-[#28282c]' : 'text-[#D1D1D6]'
                                             }`}
                                         >
                                             {m.label}
