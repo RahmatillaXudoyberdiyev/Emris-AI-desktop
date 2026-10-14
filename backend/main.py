@@ -41,7 +41,7 @@ def resolve_target_url(base_dir: Path) -> str:
         vite_active = is_port_in_use(5173)
 
         if is_dev_flag or vite_active:
-            print("[Desktop] Dev mode active: targeting Vite server at http://localhost:5173")
+            print("[Desktop] Live server active: targeting http://localhost:5173")
             return "http://localhost:5173"
 
         dist_index = base_dir / "frontend" / "dist" / "index.html"
@@ -49,7 +49,7 @@ def resolve_target_url(base_dir: Path) -> str:
             print(f"[Desktop] Production build found: targeting {dist_index}")
             return str(dist_index)
 
-        print("[Desktop] Defaulting to Vite dev URL: http://localhost:5173")
+        print("[Desktop] Defaulting to live URL: http://localhost:5173")
         return "http://localhost:5173"
     except Exception as exc:
         print(f"[Desktop] Error determining target URL: {exc}")
@@ -65,7 +65,7 @@ def launch_desktop_window():
         use_http_server = not target_url.startswith("http://") and not target_url.startswith("https://")
 
         webview.create_window(
-            title="Emris AI — v1.9 Beta (Development Mode)" if target_url.startswith("http://localhost") else "Emris AI — v1.9 Beta",
+            title="Emris AI — v1.9 Beta",
             url=target_url,
             width=1360,
             height=860,
