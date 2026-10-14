@@ -4,11 +4,11 @@ import Header from './components/Header';
 import CenterWorkspace from './components/CenterWorkspace';
 
 export default function App() {
-    const [currentProject, setCurrentProject] = useState('Emris AI Desktop app');
+    const [currentProject, setCurrentProject] = useState('No Project');
 
     useEffect(() => {
         try {
-            console.log("Emris AI Dekstop App v1.1 Beta loaded.");
+            console.log("Emris AI Dekstop App v1.1 Beta initialized with No Project.");
         } catch (error) {
             console.error("App init error:", error);
         }
@@ -23,10 +23,20 @@ export default function App() {
         }
     };
 
+    const handleNewConversation = () => {
+        try {
+            console.log("Starting new conversation: setting current project to No Project");
+            setCurrentProject('No Project');
+        } catch (error) {
+            console.error("Error setting new conversation:", error);
+        }
+    };
+
     return (
-        <div className="h-screen w-screen flex overflow-hidden bg-[#131314] text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+        <div className="h-screen w-screen flex overflow-hidden bg-[#131314] text-slate-100 antialiased selection:bg-[#2563eb] selection:text-white">
             <Sidebar
                 onSelectProject={handleSelectProject}
+                onNewConversation={handleNewConversation}
                 activeProjectName={currentProject}
             />
             <main className="flex-1 flex flex-col h-full bg-[#131314] relative overflow-hidden">

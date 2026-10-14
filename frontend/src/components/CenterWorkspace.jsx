@@ -35,7 +35,7 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
     const handleFormSubmit = (e) => {
         try {
             e.preventDefault();
-            console.log("Prompt submitted in project", currentProject, ":", promptText);
+            console.log("Prompt submitted in project:", currentProject, "Text:", promptText);
         } catch (error) {
             console.error("Error submitting prompt:", error);
         }
@@ -137,8 +137,8 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
                                                 setSelectedModel(m.value);
                                                 setIsModelMenuOpen(false);
                                             }}
-                                            className={`w-full text-left px-3 py-1.5 hover:bg-[#222226] transition ${
-                                                selectedModel === m.value ? 'text-[#60a5fa] font-medium' : 'text-[#cbd5e1]'
+                                            className={`w-full text-left px-3 py-2 hover:bg-[#222226] transition ${
+                                                selectedModel === m.value ? 'text-[#60a5fa] font-medium bg-[#28282c]' : 'text-[#cbd5e1]'
                                             }`}
                                         >
                                             {m.label}
@@ -151,31 +151,41 @@ export default function CenterWorkspace({ currentProject, onSelectProject }) {
 
                     <div className="text-[10px] text-center text-[#64748b] mt-3 leading-relaxed">
                         Saytdan foydalanish orqali siz{' '}
-                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-[#94a3b8] hover:underline">
+                        <a
+                            href="https://www.suniyintellekt.uz/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#94a3b8] hover:text-[#60a5fa] hover:underline"
+                        >
                             Foydalanish shartlari
                         </a>{' '}
                         va{' '}
-                        <a href="https://suniyintellekt.uz" target="_blank" rel="noreferrer" className="text-[#94a3b8] hover:underline">
-                            Maxfiylik siyosatiga
-                        </a>{' '}
-                        rozilik bildirasiz. • Sayt asoschisi:{' '}
                         <a
-                            href="https://rahmatilla.uz"
+                            href="https://www.suniyintellekt.uz/privacy"
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
+                            className="text-[#94a3b8] hover:text-[#60a5fa] hover:underline"
+                        >
+                            Maxfiylik siyosati
+                        </a>{' '}
+                        ga rozilik bildirasiz. • Sayt asoschisi:{' '}
+                        <a
+                            href="https://rahmatilla.uz/"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="text-[#60a5fa] hover:underline"
                         >
                             Rahmatilla.uz
                         </a>{' '}
-                        (
+                        ({' '}
                         <a
                             href="https://t.me/rahmatilla_uz"
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="text-[#60a5fa] hover:underline"
                         >
                             @rahmatilla_uz
-                        </a>
+                        </a>{' '}
                         ). Modellar xato qilishi mumkin. • © 2026
                     </div>
                 </div>

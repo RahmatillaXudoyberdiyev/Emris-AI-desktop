@@ -47,6 +47,8 @@ export default function ProjectDropdown({ selectedProject, onSelectProject }) {
         }
     };
 
+    const isNoProject = selectedProject === 'No Project';
+
     return (
         <div ref={containerRef} className="relative inline-block text-left mb-2 select-none z-30">
             <button
@@ -54,7 +56,11 @@ export default function ProjectDropdown({ selectedProject, onSelectProject }) {
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-transparent hover:bg-[#1e1e22] text-[#cbd5e1] hover:text-[#ffffff] text-xs font-medium transition cursor-pointer"
             >
-                <i className="fa-regular fa-folder text-[#94a3b8]"></i>
+                {isNoProject ? (
+                    <i className="fa-regular fa-circle-xmark text-[#94a3b8]"></i>
+                ) : (
+                    <i className="fa-regular fa-folder text-[#94a3b8]"></i>
+                )}
                 <span>{selectedProject}</span>
                 <i className="fa-solid fa-chevron-down text-[9px] text-[#64748b]"></i>
             </button>
@@ -121,10 +127,19 @@ export default function ProjectDropdown({ selectedProject, onSelectProject }) {
                         <button
                             type="button"
                             onClick={() => handleQuickAction('no_project')}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[#94a3b8] hover:text-[#ffffff] hover:bg-[#222226] transition text-left cursor-pointer"
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition text-left cursor-pointer ${
+                                isNoProject
+                                    ? 'bg-[#28282c] text-[#ffffff] font-medium'
+                                    : 'text-[#94a3b8] hover:text-[#ffffff] hover:bg-[#222226]'
+                            }`}
                         >
-                            <i className="fa-regular fa-circle-xmark text-[#64748b] text-xs"></i>
-                            <span>No Project</span>
+                            <div className="flex items-center gap-2">
+                                <i className="fa-regular fa-circle-xmark text-[#64748b] text-xs"></i>
+                                <span>No Project</span>
+                            </div>
+                            {isNoProject && (
+                                <i className="fa-solid fa-check text-[#60a5fa] text-xs"></i>
+                            )}
                         </button>
                     </div>
                 </div>
