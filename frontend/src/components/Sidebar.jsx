@@ -41,7 +41,7 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
 
     const handleLoadMore = () => {
         try {
-            console.log("Loading 10 more chats...");
+            console.log("Loading 10 more chats in projects...");
             setVisibleCount((prev) => Math.min(prev + 10, allChats.length));
         } catch (error) {
             console.error("Error loading more chats:", error);
@@ -61,16 +61,17 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
         }
     };
 
-    const handleActionClick = (actionName) => {
-        try {
-            console.log("Sidebar control action clicked:", actionName);
-        } catch (error) {
-            console.error("Error executing action:", error);
-        }
-    };
-
     const displayedChats = allChats.slice(0, visibleCount);
     const hasMore = visibleCount < allChats.length;
+
+    const projectGroups = displayedChats.reduce((acc, chat) => {
+        const projName = chat.project || 'No Project';
+        if (!acc[projName]) {
+            acc[projName] = [];
+        }
+        acc[projName].push(chat);
+        return acc;
+    }, {});
 
     return (
         <aside
@@ -93,48 +94,13 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
                         </span>
                     </div>
                 </div>
-
-                <div className="flex items-center gap-1 text-[#94a3b8] text-xs">
-                    <button
-                        type="button"
-                        onClick={() => handleActionClick('toggle_sidebar')}
-                        className="p-1 hover:text-[#ffffff] transition rounded hover:bg-[#222226] cursor-pointer"
-                        title="Toggle Sidebar"
-                    >
-                        <i className="fa-solid fa-table-columns text-xs"></i>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleActionClick('history_back')}
-                        className="p-1 hover:text-[#ffffff] transition rounded hover:bg-[#222226] cursor-pointer"
-                        title="Back"
-                    >
-                        <i className="fa-solid fa-arrow-left text-xs"></i>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleActionClick('history_forward')}
-                        className="p-1 hover:text-[#ffffff] transition rounded hover:bg-[#222226] cursor-pointer"
-                        title="Forward"
-                    >
-                        <i className="fa-solid fa-arrow-right text-xs"></i>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleActionClick('search')}
-                        className="p-1 hover:text-[#ffffff] transition rounded hover:bg-[#222226] cursor-pointer"
-                        title="Search"
-                    >
-                        <i className="fa-solid fa-magnifying-glass text-xs"></i>
-                    </button>
-                </div>
             </div>
 
             <div className="p-3 pb-2">
                 <button
                     type="button"
                     onClick={handleNewChat}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] text-[#f1f5f9] hover:text-[#ffffff] border border-[#2e2e32] transition flex items-center gap-2 text-xs font-medium cursor-pointer shadow-sm"
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] text-[#f1f5f9] hover:text-[#ffffff] border border-[#2e2e32] transition-colors flex items-center gap-2 text-xs font-medium cursor-pointer shadow-sm"
                 >
                     <i className="fa-solid fa-plus text-[#60a5fa] text-xs"></i>
                     <span>New Conversation</span>
@@ -144,8 +110,7 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
             <div className="px-2 py-1 space-y-0.5 text-xs">
                 <button
                     type="button"
-                    onClick={() => handleActionClick('conversation_history')}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-[#cbd5e1] hover:text-[#ffffff] hover:bg-[#222226] transition flex items-center gap-2.5 text-left cursor-pointer"
+                    className="w-full px-2.5 py-1.5 rounded-lg text-[#cbd5e1] hover:text-[#ffffff] hover:bg-[#222226] transition-colors flex items-center gap-2.5 text-left cursor-pointer"
                 >
                     <i className="fa-regular fa-clock text-[#94a3b8] text-xs w-4 text-center"></i>
                     <span>Conversation History</span>
@@ -153,8 +118,7 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
 
                 <button
                     type="button"
-                    onClick={() => handleActionClick('automations')}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-[#cbd5e1] hover:text-[#ffffff] hover:bg-[#222226] transition flex items-center gap-2.5 text-left cursor-pointer"
+                    className="w-full px-2.5 py-1.5 rounded-lg text-[#cbd5e1] hover:text-[#ffffff] hover:bg-[#222226] transition-colors flex items-center gap-2.5 text-left cursor-pointer"
                 >
                     <i className="fa-regular fa-hourglass-half text-[#94a3b8] text-xs w-4 text-center"></i>
                     <span>Automations</span>
@@ -162,8 +126,7 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
 
                 <button
                     type="button"
-                    onClick={() => handleActionClick('customizations')}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#222226] text-[#ffffff] transition flex items-center gap-2.5 text-left cursor-pointer"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#222226] text-[#ffffff] transition-colors flex items-center gap-2.5 text-left cursor-pointer"
                 >
                     <i className="fa-solid fa-sliders text-[#cbd5e1] text-xs w-4 text-center"></i>
                     <span>Customizations</span>
@@ -171,57 +134,68 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
             </div>
 
             <div className="px-4 pt-3 pb-1.5 flex items-center justify-between text-[11px] font-semibold tracking-wider text-[#94a3b8] uppercase">
-                <span>Suhbatlar tarixi</span>
+                <span>Projects</span>
                 <span className="text-[10px] text-[#64748b]">{allChats.length}</span>
             </div>
 
             <div
                 id="sessions-list"
                 onScroll={handleScroll}
-                className="flex-1 min-h-0 overflow-y-auto px-2 space-y-1 py-1 custom-scrollbar text-xs"
+                className="flex-1 min-h-0 overflow-y-auto px-2 space-y-2 py-1 custom-scrollbar text-xs"
             >
-                {displayedChats.map((chat) => {
-                    const isSelected = selectedChatId === chat.id;
+                {Object.entries(projectGroups).map(([projectName, chats]) => {
+                    const isCurrentProject = activeProjectName === projectName;
                     return (
-                        <div
-                            key={chat.id}
-                            onClick={() => handleChatClick(chat)}
-                            className={`session-item group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition text-xs ${
-                                isSelected
-                                    ? 'bg-[#1e1e22] border border-[#2563eb]/60 text-[#ffffff] shadow-md'
-                                    : 'hover:bg-[#222226] text-[#cbd5e1] hover:text-[#ffffff] border border-transparent'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5 overflow-hidden flex-1 pointer-events-none">
-                                <i
-                                    className={`fa-regular fa-message text-[11px] ${
-                                        isSelected ? 'text-[#60a5fa]' : 'text-[#94a3b8]'
-                                    } flex-shrink-0`}
-                                ></i>
-                                <span className="truncate max-w-[145px] font-medium">
-                                    {chat.title}
-                                </span>
+                        <div key={projectName} className="space-y-0.5">
+                            <div
+                                onClick={() => onSelectProject && onSelectProject(projectName)}
+                                className={`flex items-center justify-between px-2 py-1 rounded-md cursor-pointer transition-colors ${
+                                    isCurrentProject
+                                        ? 'text-[#ffffff] font-medium'
+                                        : 'text-[#94a3b8] hover:text-[#f1f5f9]'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2 truncate">
+                                    <i className="fa-regular fa-folder text-[#94a3b8] text-xs"></i>
+                                    <span className="truncate">{projectName}</span>
+                                </div>
+                                <span className="text-[10px] text-[#64748b]">{chats.length}</span>
                             </div>
 
-                            <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px]">
-                                {chat.isPinned && (
-                                    <i className="fa-solid fa-thumbtack text-[#f59e0b] text-[10px]"></i>
-                                )}
-                                {chat.dot && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]"></span>
-                                )}
-                                <div className="hidden group-hover:flex items-center gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleActionClick(`delete_${chat.id}`);
-                                        }}
-                                        className="text-[#64748b] hover:text-[#ef4444] p-0.5 rounded"
-                                    >
-                                        <i className="fa-regular fa-trash-can text-[10px]"></i>
-                                    </button>
-                                </div>
+                            <div className="pl-3 space-y-0.5">
+                                {chats.map((chat) => {
+                                    const isSelected = selectedChatId === chat.id;
+                                    return (
+                                        <div
+                                            key={chat.id}
+                                            onClick={() => handleChatClick(chat)}
+                                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors text-xs ${
+                                                isSelected
+                                                    ? 'bg-[#28282c] text-[#ffffff] font-medium'
+                                                    : 'text-[#94a3b8] hover:text-[#f1f5f9] hover:bg-[#222226]'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                                <i
+                                                    className={`fa-regular fa-message text-[10px] flex-shrink-0 ${
+                                                        isSelected ? 'text-[#60a5fa]' : 'text-[#64748b]'
+                                                    }`}
+                                                ></i>
+                                                <span className="truncate">{chat.title}</span>
+                                            </div>
+
+                                            <div className="flex items-center gap-1.5 flex-shrink-0 text-[10px] text-[#64748b] ml-1.5">
+                                                {chat.isPinned && (
+                                                    <i className="fa-solid fa-thumbtack text-[#f59e0b] text-[9px]"></i>
+                                                )}
+                                                {chat.dot && (
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]"></span>
+                                                )}
+                                                {chat.time && <span>{chat.time}</span>}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     );
@@ -231,7 +205,7 @@ export default function Sidebar({ onSelectProject, onNewConversation, activeProj
                     <button
                         type="button"
                         onClick={handleLoadMore}
-                        className="w-full py-2 px-3 my-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] text-[#94a3b8] hover:text-[#f1f5f9] border border-[#2e2e32] transition flex items-center justify-center gap-2 text-[11px] font-medium cursor-pointer"
+                        className="w-full py-2 px-3 my-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] text-[#94a3b8] hover:text-[#f1f5f9] border border-[#2e2e32] transition-colors flex items-center justify-center gap-2 text-[11px] font-medium cursor-pointer"
                     >
                         <i className="fa-solid fa-angles-down text-[#60a5fa] text-[10px]"></i>
                         <span>Ko'proq yuklash (+10)</span>
