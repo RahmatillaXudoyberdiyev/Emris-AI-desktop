@@ -9,9 +9,21 @@ import webview
 try:
     from backend.database import db
     from backend.terminal import execute_shell_command
+    from backend.gateway import (
+        get_device_quota,
+        check_gateway_health,
+        request_generate,
+        get_persistent_device_id
+    )
 except ImportError:
     from database import db
     from terminal import execute_shell_command
+    from gateway import (
+        get_device_quota,
+        check_gateway_health,
+        request_generate,
+        get_persistent_device_id
+    )
 
 if sys.stdout is None:
     sys.stdout = io.StringIO()
@@ -149,6 +161,34 @@ class DesktopBridge:
         except Exception as exc:
             print(f"[Desktop] run_command error: {exc}")
             return {"success": False, "stdout": "", "stderr": str(exc), "exit_code": -1}
+
+    def get_quota(self):
+        try:
+            return get_device_quota()
+        except Exception as exc:
+            print(f"[Desktop] get_quota error: {exc}")
+            return {"error": str(exc)}
+
+    def check_gateway_health(self):
+        try:
+            return check_gateway_health()
+        except Exception as exc:
+            print(f"[Desktop] check_gateway_health error: {exc}")
+            return {"online": False, "error": str(exc)}
+
+    def generate_ai(self, prompt: str, model: str = "gemini-3.5-flash-lite", history: list = None):
+        try:
+            return request_generate(prompt, model, history)
+        except Exception as exc:
+            print(f"[Desktop] generate_ai error: {exc}")
+            return {"success": False, "error": str(exc)}
+
+    def get_device_id(self):
+        try:
+            return get_persistent_device_id()
+        except Exception as exc:
+            print(f"[Desktop] get_device_id error: {exc}")
+            return "unknown"
 
 
 def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:

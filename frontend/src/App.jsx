@@ -124,10 +124,37 @@ export default function App() {
 
       if (conv) {
         await desktopApi.addMessage(conv.id, "user", promptText);
-        const replyText = `[${model}] Qabul qilindi: "${promptText}". Tez orada agentik buyruqlar va tahlil boshlanadi.`;
+        const currentMessages = await desktopApi.getMessages(conv.id);
+        setMessages(currentMessages || []);
+
+        const history = (currentMessages || []).map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }]
+        }));
+
+        const result = await desktopApi.generateAi(promptText, model, history);
+        let replyText = "";
+
+        if (result.success && result.data) {
+          replyText =
+            result.data.response ||
+            result.data.text ||
+            result.data.content ||
+            result.data.message ||
+            (typeof result.data === "string" ? result.data : JSON.stringify(result.data));
+        } else if (result.code === 429) {
+          replyText = "Bugungi bepul so'rovlar limiti tugadi (50/50). Limit ertaga yangilanadi.";
+        } else if (result.code === 403) {
+          replyText = "Xavfsizlik tekshiruvi xatosi (HMAC X-Signature). Iltimos, EMRIS_DESKTOP_SECRET kalitini tekshiring.";
+        } else if (result.code === 401) {
+          replyText = "Vaqt tamg'asi xatosi (Replay attack). Kompyuteringiz soati to'g'ri sozlanganini tekshiring.";
+        } else {
+          replyText = `[Gateway xatoligi]: ${result.error?.message || result.error || "SuniyIntellekt.uz serveriga ulanib bo'lmadi."}`;
+        }
+
         await desktopApi.addMessage(conv.id, "assistant", replyText);
-        const updated = await desktopApi.getMessages(conv.id);
-        setMessages(updated || []);
+        const finalMessages = await desktopApi.getMessages(conv.id);
+        setMessages(finalMessages || []);
       }
     } catch (error) {
       console.error("[App] Submit prompt error:", error);

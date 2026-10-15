@@ -1,10 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "../i18n/LanguageContext";
+import { desktopApi } from "../services/api";
 
 export default function Header({ currentProject, currentSessionTitle }) {
   const { language, setLanguage, t } = useTranslation();
   const [isLangOpen, setIsLangOpen] = useState(false);
+  const [quota, setQuota] = useState(null);
   const langRef = useRef(null);
+
+  useEffect(() => {
+    desktopApi.getQuota().then((data) => {
+      if (data && data.remaining !== undefined) {
+        setQuota(data);
+      }
+    }).catch((err) => console.error("[Header] Quota error:", err));
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -151,6 +161,17 @@ export default function Header({ currentProject, currentSessionTitle }) {
             </div>
           )}
         </div>
+
+        {quota && quota.remaining !== undefined && (
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] border border-[#2e2e32] text-xs"
+            title="Bugungi bepul so'rovlar limiti"
+          >
+            <i className="fa-solid fa-bolt text-[#60a5fa] text-[10px]"></i>
+            <span className="text-[#F9F9FA] font-medium">{quota.remaining}</span>
+            <span className="text-[#64748b]">/ {quota.limit || 50}</span>
+          </div>
+        )}
 
         <button
           type="button"

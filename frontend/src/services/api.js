@@ -157,5 +157,58 @@ export const desktopApi = {
       console.error("[API] runCommand error:", err);
       return { success: false, stdout: "", stderr: String(err), exit_code: -1 };
     }
+  },
+
+  async getQuota() {
+    try {
+      const api = getApi();
+      if (api?.get_quota) {
+        return await api.get_quota();
+      }
+      return { used: 0, remaining: 50, limit: 50 };
+    } catch (err) {
+      console.error("[API] getQuota error:", err);
+      return { error: String(err) };
+    }
+  },
+
+  async checkGatewayHealth() {
+    try {
+      const api = getApi();
+      if (api?.check_gateway_health) {
+        return await api.check_gateway_health();
+      }
+      return { online: false };
+    } catch (err) {
+      console.error("[API] checkGatewayHealth error:", err);
+      return { online: false, error: String(err) };
+    }
+  },
+
+  async generateAi(prompt, model, history = []) {
+    try {
+      const api = getApi();
+      if (api?.generate_ai) {
+        return await api.generate_ai(prompt, model, history);
+      }
+      return { success: false, error: "Desktop bridge unavailable" };
+    } catch (err) {
+      console.error("[API] generateAi error:", err);
+      return { success: false, error: String(err) };
+    }
+  },
+
+  async getDeviceId() {
+    try {
+      const api = getApi();
+      if (api?.get_device_id) {
+        return await api.get_device_id();
+      }
+      return "local_dev_device";
+    } catch (err) {
+      console.error("[API] getDeviceId error:", err);
+      return "local_dev_device";
+    }
   }
 };
+
