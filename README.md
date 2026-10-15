@@ -12,7 +12,7 @@ An open-source, ultra-lightweight desktop AI workstation combining **Python** an
 
 ## Highlights
 
-* **Ultra-Lightweight Desktop Shell (~11 MB)**: Uses native OS webviews (Microsoft Edge WebView2 on Windows via `pywebview`) instead of bundling a 150+ MB Chromium runtime.
+* **Ultra-Lightweight Desktop Shell (Baseline ~11 MB, Capped <= 150 MB)**: Uses native OS webviews (Microsoft Edge WebView2 on Windows via `pywebview`) instead of bundling a 150+ MB Chromium runtime, preserving a lightweight footprint while supporting native codebase intelligence.
 * **Antigravity-Inspired Navigation**: Organized sidebar featuring project folder hierarchies, conversation histories, automations, and customizations.
 * **Inline Project Switcher**: Floating project selector located directly above the prompt bar for switching contexts instantly.
 * **Dual Work & Chat Integration**:
