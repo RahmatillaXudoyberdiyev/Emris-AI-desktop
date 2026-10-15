@@ -1,0 +1,49 @@
+{
+  "header": {
+    "workspace": "Ish maydoni:",
+    "untitled": "Nomsiz sessiya",
+    "api_keys": "API Kalitlar"
+  },
+  "sidebar": {
+    "brand": "Emris AI",
+    "version": "v1.1 Beta",
+    "new_chat": "Yangi suhbat",
+    "projects": "Loyihalar",
+    "conversations": "Suhbatlar",
+    "no_projects": "Hali loyihalar yo'q",
+    "no_conversations": "Hali suhbatlar yo'q",
+    "confirm_delete": "O'chirilsinmi?"
+  },
+  "workspace": {
+    "work_mode": "Work",
+    "chat_mode": "Chat",
+    "choose_project": "Loyiha tanlash",
+    "new_project": "+ Yangi loyiha",
+    "placeholder": "Nima yaratmoqchisiz yoki qanday vazifani hal qilmoqchisiz?",
+    "legal_prefix": "Saytdan foydalanish orqali siz",
+    "terms": "Foydalanish shartlari",
+    "and": "va",
+    "privacy": "Maxfiylik siyosati",
+    "legal_suffix": "ga rozilik bildirasiz.",
+    "founder": "Sayt asoschisi:",
+    "disclaimer": "Modellar xato qilishi mumkin."
+  },
+  "folder_modal": {
+    "title": "Loyiha papkasini tanlang",
+    "project_name": "Loyiha nomi",
+    "project_name_placeholder": "Masalan: Mening ilovam",
+    "folder_path": "Papka yo'li",
+    "folder_path_placeholder": "D:\\Loyihalar\\MeningIlovam",
+    "browse": "Ko'rib chiqish",
+    "privacy_note": "Loyiha fayllari mahalliy kompyuteringizda qoladi va bulutga yuborilmaydi.",
+    "cancel": "Bekor qilish",
+    "create": "Loyiha yaratish"
+  },
+  "terminal": {
+    "title": "Terminal Konsoli",
+    "approval_prompt": "AI quyidagi buyruqni ishga tushirishga ruxsat so'ramoqda:",
+    "run": "Bajarish",
+    "reject": "Rad etish",
+    "output": "Ijro natijasi"
+  }
+}

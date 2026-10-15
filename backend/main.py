@@ -6,6 +6,13 @@ import webbrowser
 from pathlib import Path
 import webview
 
+try:
+    from backend.database import db
+    from backend.terminal import execute_shell_command
+except ImportError:
+    from database import db
+    from terminal import execute_shell_command
+
 if sys.stdout is None:
     sys.stdout = io.StringIO()
 if sys.stderr is None:
@@ -13,14 +20,114 @@ if sys.stderr is None:
 
 
 class DesktopBridge:
+    def __init__(self):
+        self.window = None
+
+    def set_window(self, window):
+        self.window = window
+
     def open_external(self, url: str):
         try:
-            print(f"[Desktop] Opening external URL in browser: {url}")
+            print(f"[Desktop] Opening external URL: {url}")
             webbrowser.open(url)
             return True
         except Exception as exc:
             print(f"[Desktop] Error opening external URL: {exc}")
             return False
+
+    def choose_folder(self):
+        try:
+            if not self.window:
+                if webview.windows:
+                    self.window = webview.windows[0]
+            if not self.window:
+                return None
+            result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+            if result and len(result) > 0:
+                selected_path = str(Path(result[0]).resolve())
+                print(f"[Desktop] User selected folder: {selected_path}")
+                return selected_path
+            return None
+        except Exception as exc:
+            print(f"[Desktop] Folder dialog error: {exc}")
+            return None
+
+    def get_projects(self):
+        try:
+            return db.get_projects()
+        except Exception as exc:
+            print(f"[Desktop] get_projects error: {exc}")
+            return []
+
+    def create_project(self, name: str, path: str):
+        try:
+            return db.create_project(name, path)
+        except Exception as exc:
+            print(f"[Desktop] create_project error: {exc}")
+            return None
+
+    def delete_project(self, project_id: str):
+        try:
+            return db.delete_project(project_id)
+        except Exception as exc:
+            print(f"[Desktop] delete_project error: {exc}")
+            return False
+
+    def get_conversations(self, project_id: str = None):
+        try:
+            return db.get_conversations(project_id)
+        except Exception as exc:
+            print(f"[Desktop] get_conversations error: {exc}")
+            return []
+
+    def create_conversation(self, title: str, project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
+        try:
+            return db.create_conversation(title, project_id, model)
+        except Exception as exc:
+            print(f"[Desktop] create_conversation error: {exc}")
+            return None
+
+    def delete_conversation(self, conversation_id: str):
+        try:
+            return db.delete_conversation(conversation_id)
+        except Exception as exc:
+            print(f"[Desktop] delete_conversation error: {exc}")
+            return False
+
+    def get_messages(self, conversation_id: str):
+        try:
+            return db.get_messages(conversation_id)
+        except Exception as exc:
+            print(f"[Desktop] get_messages error: {exc}")
+            return []
+
+    def add_message(self, conversation_id: str, role: str, content: str):
+        try:
+            return db.add_message(conversation_id, role, content)
+        except Exception as exc:
+            print(f"[Desktop] add_message error: {exc}")
+            return None
+
+    def get_setting(self, key: str, default: str = ""):
+        try:
+            return db.get_setting(key, default)
+        except Exception as exc:
+            print(f"[Desktop] get_setting error: {exc}")
+            return default
+
+    def set_setting(self, key: str, value: str):
+        try:
+            return db.set_setting(key, value)
+        except Exception as exc:
+            print(f"[Desktop] set_setting error: {exc}")
+            return False
+
+    def run_command(self, command: str, cwd: str = None):
+        try:
+            return execute_shell_command(command, cwd)
+        except Exception as exc:
+            print(f"[Desktop] run_command error: {exc}")
+            return {"success": False, "stdout": "", "stderr": str(exc), "exit_code": -1}
 
 
 def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
@@ -37,11 +144,8 @@ def get_base_dir() -> Path:
     try:
         if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
             base_path = Path(sys._MEIPASS)
-            print(f"[Desktop] Running in frozen EXE mode. Base path: {base_path}")
             return base_path
-        base_path = Path(__file__).resolve().parent.parent
-        print(f"[Desktop] Running in standard Python mode. Base path: {base_path}")
-        return base_path
+        return Path(__file__).resolve().parent.parent
     except Exception as exc:
         print(f"[Desktop] Error resolving base dir: {exc}")
         return Path.cwd()
@@ -61,7 +165,6 @@ def resolve_target_url(base_dir: Path) -> str:
             print(f"[Desktop] Production build found: targeting {dist_index}")
             return str(dist_index)
 
-        print("[Desktop] Defaulting to live URL: http://localhost:5173")
         return "http://localhost:5173"
     except Exception as exc:
         print(f"[Desktop] Error determining target URL: {exc}")
@@ -72,12 +175,12 @@ def launch_desktop_window():
     try:
         base_dir = get_base_dir()
         target_url = resolve_target_url(base_dir)
-        print(f"[Desktop] Opening Emris AI Desktop window with target: {target_url}")
+        print(f"[Desktop] Launching Emris AI Desktop window: {target_url}")
 
         use_http_server = not target_url.startswith("http://") and not target_url.startswith("https://")
         bridge_api = DesktopBridge()
 
-        webview.create_window(
+        window = webview.create_window(
             title="Emris AI Dekstop App — v1.1 Beta",
             url=target_url,
             width=1360,
@@ -86,9 +189,10 @@ def launch_desktop_window():
             background_color="#131314",
             js_api=bridge_api
         )
+        bridge_api.set_window(window)
         webview.start(http_server=use_http_server)
     except Exception as exc:
-        print(f"[Desktop] Critical desktop launcher error: {exc}")
+        print(f"[Desktop] Critical launcher error: {exc}")
         sys.exit(1)
 
 

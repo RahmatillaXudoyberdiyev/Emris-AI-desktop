@@ -1,0 +1,49 @@
+{
+  "header": {
+    "workspace": "Workspace:",
+    "untitled": "Untitled Session",
+    "api_keys": "API Keys"
+  },
+  "sidebar": {
+    "brand": "Emris AI",
+    "version": "v1.1 Beta",
+    "new_chat": "New Conversation",
+    "projects": "Projects",
+    "conversations": "Conversations",
+    "no_projects": "No projects yet",
+    "no_conversations": "No conversations yet",
+    "confirm_delete": "Delete item?"
+  },
+  "workspace": {
+    "work_mode": "Work",
+    "chat_mode": "Chat",
+    "choose_project": "Choose project",
+    "new_project": "+ New project",
+    "placeholder": "What would you like to build or solve?",
+    "legal_prefix": "By using this platform you agree to our",
+    "terms": "Terms of Service",
+    "and": "and",
+    "privacy": "Privacy Policy",
+    "legal_suffix": ".",
+    "founder": "Founder:",
+    "disclaimer": "Models may make mistakes."
+  },
+  "folder_modal": {
+    "title": "Select Project Folder",
+    "project_name": "Project Name",
+    "project_name_placeholder": "E.g., My Application",
+    "folder_path": "Folder Path",
+    "folder_path_placeholder": "D:\\Projects\\MyApp",
+    "browse": "Browse",
+    "privacy_note": "Project files remain local to your computer and are never uploaded to the cloud.",
+    "cancel": "Cancel",
+    "create": "Create Project"
+  },
+  "terminal": {
+    "title": "Terminal Console",
+    "approval_prompt": "AI is requesting permission to execute:",
+    "run": "Run",
+    "reject": "Reject",
+    "output": "Command Output"
+  }
+}

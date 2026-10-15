@@ -1,0 +1,49 @@
+{
+  "header": {
+    "workspace": "Рабочая область:",
+    "untitled": "Безымянная сессия",
+    "api_keys": "API Ключи"
+  },
+  "sidebar": {
+    "brand": "Emris AI",
+    "version": "v1.1 Beta",
+    "new_chat": "Новый диалог",
+    "projects": "Проекты",
+    "conversations": "Диалоги",
+    "no_projects": "Пока нет проектов",
+    "no_conversations": "Пока нет диалогов",
+    "confirm_delete": "Удалить элемент?"
+  },
+  "workspace": {
+    "work_mode": "Work",
+    "chat_mode": "Chat",
+    "choose_project": "Выбрать проект",
+    "new_project": "+ Новый проект",
+    "placeholder": "Что вы хотите создать или какую задачу решить?",
+    "legal_prefix": "Используя платформу, вы соглашаетесь с",
+    "terms": "Условиями использования",
+    "and": "и",
+    "privacy": "Политикой конфиденциальности",
+    "legal_suffix": ".",
+    "founder": "Основатель:",
+    "disclaimer": "Модели могут ошибаться."
+  },
+  "folder_modal": {
+    "title": "Выберите папку проекта",
+    "project_name": "Название проекта",
+    "project_name_placeholder": "Например: Моё приложение",
+    "folder_path": "Путь к папке",
+    "folder_path_placeholder": "D:\\Projects\\MyApp",
+    "browse": "Обзор",
+    "privacy_note": "Файлы проекта остаются локальными на вашем ПК и не передаются в облако.",
+    "cancel": "Отмена",
+    "create": "Создать проект"
+  },
+  "terminal": {
+    "title": "Терминал",
+    "approval_prompt": "ИИ запрашивает разрешение на выполнение команды:",
+    "run": "Выполнить",
+    "reject": "Отклонить",
+    "output": "Результат выполнения"
+  }
+}
