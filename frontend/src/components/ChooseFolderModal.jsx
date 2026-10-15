@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "../i18n/LanguageContext";
 import { desktopApi } from "../services/api";
 
@@ -6,6 +6,22 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
   const { t } = useTranslation();
   const [projectName, setProjectName] = useState("");
   const [folderPath, setFolderPath] = useState("");
+  const [hasUserTypedName, setHasUserTypedName] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      try {
+        if (e.key === "Escape") {
+          onClose();
+        }
+      } catch (err) {
+        console.error("[Modal] Escape key error:", err);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -14,10 +30,11 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
       const selected = await desktopApi.chooseFolder();
       if (selected) {
         setFolderPath(selected);
-        if (!projectName) {
-          const parts = selected.replace(/\\/g, "/").split("/");
-          const lastPart = parts[parts.length - 1] || "My Project";
-          setProjectName(lastPart);
+        if (!hasUserTypedName || !projectName.trim()) {
+          const cleanPath = selected.replace(/[\\/]+$/, "");
+          const parts = cleanPath.replace(/\\/g, "/").split("/");
+          const folderBaseName = parts[parts.length - 1] || "My Project";
+          setProjectName(folderBaseName);
         }
       }
     } catch (err) {
@@ -34,6 +51,7 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
       }
       setProjectName("");
       setFolderPath("");
+      setHasUserTypedName(false);
       onClose();
     } catch (error) {
       console.error("[Modal] Confirm error:", error);
@@ -74,7 +92,10 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
             <input
               type="text"
               value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              onChange={(e) => {
+                setProjectName(e.target.value);
+                setHasUserTypedName(true);
+              }}
               placeholder={t("folder_modal.project_name_placeholder")}
               className="w-full bg-[#141416] border border-[#2e2e32] rounded-xl px-3 py-2 text-[#F9F9FA] placeholder-[#64748b] focus:outline-none focus:border-[#2563eb]"
             />

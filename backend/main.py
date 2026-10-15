@@ -19,13 +19,44 @@ if sys.stderr is None:
     sys.stderr = io.StringIO()
 
 
+def load_env_file():
+    try:
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip())
+            print("[Desktop] .env configuration loaded.")
+    except Exception as exc:
+        print(f"[Desktop] Error loading .env: {exc}")
+
+
+load_env_file()
+
+
+def choose_folder_dialog():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(title="Select Project Folder")
+        root.destroy()
+        if selected:
+            resolved = str(Path(selected).resolve())
+            print(f"[Desktop] Selected directory: {resolved}")
+            return resolved
+        return None
+    except Exception as exc:
+        print(f"[Desktop] Folder dialog error: {exc}")
+        return None
+
+
 class DesktopBridge:
-    def __init__(self):
-        self.window = None
-
-    def set_window(self, window):
-        self.window = window
-
     def open_external(self, url: str):
         try:
             print(f"[Desktop] Opening external URL: {url}")
@@ -37,19 +68,9 @@ class DesktopBridge:
 
     def choose_folder(self):
         try:
-            if not self.window:
-                if webview.windows:
-                    self.window = webview.windows[0]
-            if not self.window:
-                return None
-            result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
-            if result and len(result) > 0:
-                selected_path = str(Path(result[0]).resolve())
-                print(f"[Desktop] User selected folder: {selected_path}")
-                return selected_path
-            return None
+            return choose_folder_dialog()
         except Exception as exc:
-            print(f"[Desktop] Folder dialog error: {exc}")
+            print(f"[Desktop] Folder selection error: {exc}")
             return None
 
     def get_projects(self):
@@ -143,8 +164,7 @@ def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
 def get_base_dir() -> Path:
     try:
         if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            base_path = Path(sys._MEIPASS)
-            return base_path
+            return Path(sys._MEIPASS)
         return Path(__file__).resolve().parent.parent
     except Exception as exc:
         print(f"[Desktop] Error resolving base dir: {exc}")
@@ -189,7 +209,6 @@ def launch_desktop_window():
             background_color="#131314",
             js_api=bridge_api
         )
-        bridge_api.set_window(window)
         webview.start(http_server=use_http_server)
     except Exception as exc:
         print(f"[Desktop] Critical launcher error: {exc}")
