@@ -95,17 +95,28 @@ class DatabaseManager:
 
     def create_project(self, name: str, path: str):
         try:
-            project_id = str(uuid.uuid4())[:8]
-            created_at = datetime.utcnow().isoformat()
+            trimmed_name = name.strip()
+            trimmed_path = path.strip()
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
+                    "SELECT id, name, path FROM projects WHERE LOWER(name) = LOWER(?) OR LOWER(path) = LOWER(?);",
+                    (trimmed_name, trimmed_path)
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    print(f"[DB] Duplicate project rejected: {trimmed_name}")
+                    return {"error": "duplicate", "message": "Project already exists", "name": trimmed_name}
+
+                project_id = str(uuid.uuid4())[:8]
+                created_at = datetime.utcnow().isoformat()
+                cursor.execute(
                     "INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?);",
-                    (project_id, name.strip(), path.strip(), created_at)
+                    (project_id, trimmed_name, trimmed_path, created_at)
                 )
                 conn.commit()
-                print(f"[DB] Project created: {name} ({project_id})")
-                return {"id": project_id, "name": name, "path": path, "created_at": created_at}
+                print(f"[DB] Project created: {trimmed_name} ({project_id})")
+                return {"id": project_id, "name": trimmed_name, "path": trimmed_path, "created_at": created_at}
         except Exception as exc:
             print(f"[DB] Error creating project: {exc}")
             return None

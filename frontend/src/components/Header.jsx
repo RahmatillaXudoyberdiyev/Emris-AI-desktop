@@ -125,7 +125,7 @@ export default function Header({
             className="text-xs text-[#F9F9FA] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition-colors cursor-pointer"
           >
             <i className="fa-solid fa-folder text-[#f59e0b]"></i>
-            <span className="font-medium">{currentProject || "No Project"}</span>
+            <span className="font-medium">{currentProject && currentProject !== "No Project" ? currentProject : t("workspace.no_project")}</span>
             <i className="fa-solid fa-chevron-down text-[8px] text-[#64748b] ml-0.5"></i>
           </button>
 
@@ -148,7 +148,7 @@ export default function Header({
                 >
                   <div className="flex items-center gap-2 truncate">
                     <i className="fa-regular fa-circle-xmark text-[#94a3b8] text-xs"></i>
-                    <span>No Project</span>
+                    <span>{t("workspace.no_project")}</span>
                   </div>
                   {currentProject === "No Project" && <i className="fa-solid fa-check text-[#60a5fa] text-[10px]"></i>}
                 </button>

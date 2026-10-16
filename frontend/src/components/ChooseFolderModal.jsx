@@ -2,15 +2,17 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "../i18n/LanguageContext";
 import { desktopApi } from "../services/api";
 
-export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
+export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder, projects = [] }) {
   const { t } = useTranslation();
   const [projectName, setProjectName] = useState("");
   const [folderPath, setFolderPath] = useState("");
   const [hasUserTypedName, setHasUserTypedName] = useState(false);
   const [isBrowsing, setIsBrowsing] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
+    setError("");
     const handleKeyDown = (e) => {
       try {
         if (e.key === "Escape") {
@@ -28,6 +30,7 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
 
   const handleBrowse = async () => {
     try {
+      setError("");
       setIsBrowsing(true);
       const selected = await desktopApi.chooseFolder();
       if (selected) {
@@ -50,15 +53,28 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
     try {
       const finalName = projectName.trim() || "New Project";
       const finalPath = folderPath.trim() || "D:\\Projects\\" + finalName;
+
+      const isDuplicate = projects.some((p) => {
+        const nameMatch = p.name.trim().toLowerCase() === finalName.toLowerCase();
+        const pathMatch = finalPath && p.path && p.path.trim().toLowerCase() === finalPath.toLowerCase();
+        return nameMatch || pathMatch;
+      });
+
+      if (isDuplicate) {
+        setError(t("folder_modal.already_exists"));
+        return;
+      }
+
       if (onSelectFolder) {
         onSelectFolder(finalName, finalPath);
       }
       setProjectName("");
       setFolderPath("");
       setHasUserTypedName(false);
+      setError("");
       onClose();
-    } catch (error) {
-      console.error("[Modal] Confirm error:", error);
+    } catch (err) {
+      console.error("[Modal] Confirm error:", err);
     }
   };
 
@@ -88,6 +104,13 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
           </button>
         </div>
 
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-[#ef4444]/15 border border-[#ef4444]/30 text-[#fca5a5] text-xs leading-relaxed animate-in fade-in">
+            <i className="fa-solid fa-triangle-exclamation text-[#ef4444] text-xs flex-shrink-0"></i>
+            <span>{error}</span>
+          </div>
+        )}
+
         <div className="space-y-3 text-xs">
           <div>
             <label className="block text-[11px] font-semibold text-[#D1D1D6] mb-1">
@@ -99,6 +122,7 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
               onChange={(e) => {
                 setProjectName(e.target.value);
                 setHasUserTypedName(true);
+                setError("");
               }}
               placeholder={t("folder_modal.project_name_placeholder")}
               className="w-full bg-[#141416] border border-[#2e2e32] rounded-xl px-3 py-2 text-[#F9F9FA] placeholder-[#64748b] focus:outline-none focus:border-[#2563eb]"
@@ -113,7 +137,10 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
               <input
                 type="text"
                 value={folderPath}
-                onChange={(e) => setFolderPath(e.target.value)}
+                onChange={(e) => {
+                  setFolderPath(e.target.value);
+                  setError("");
+                }}
                 placeholder={t("folder_modal.folder_path_placeholder")}
                 className="flex-1 bg-[#141416] border border-[#2e2e32] rounded-xl px-3 py-2 text-[#F9F9FA] text-xs focus:outline-none focus:border-[#2563eb]"
               />

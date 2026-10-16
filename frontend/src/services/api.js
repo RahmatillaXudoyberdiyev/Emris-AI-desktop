@@ -87,9 +87,15 @@ export const desktopApi = {
         const res = await api.create_project(name, path);
         if (res) return res;
       }
-      const fallback = { id: String(Date.now()), name, path, created_at: new Date().toISOString() };
       const stored = localStorage.getItem("emris_projects");
       const list = stored ? JSON.parse(stored) : [];
+      const cleanName = name.trim();
+      const cleanPath = path ? path.trim() : "";
+      const isDup = list.some((p) => p.name.toLowerCase() === cleanName.toLowerCase() || (cleanPath && p.path && p.path.toLowerCase() === cleanPath.toLowerCase()));
+      if (isDup) {
+        return { error: "duplicate", message: "Project already exists" };
+      }
+      const fallback = { id: String(Date.now()), name: cleanName, path: cleanPath, created_at: new Date().toISOString() };
       localStorage.setItem("emris_projects", JSON.stringify([fallback, ...list]));
       return fallback;
     } catch (err) {

@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import CenterWorkspace from "./components/CenterWorkspace";
 import ChooseFolderModal from "./components/ChooseFolderModal";
+import Toast from "./components/Toast";
 import { desktopApi } from "./services/api";
 
 export default function App() {
@@ -13,6 +14,15 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [agentState, setAgentState] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "info") => {
+    try {
+      setToast({ message, type });
+    } catch (err) {
+      console.error("[App] Show toast error:", err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -44,11 +54,35 @@ export default function App() {
     }
   };
 
-  const handleNewConversation = () => {
+  const handleNewProjectConversation = async (project) => {
     try {
-      setCurrentProject("No Project");
-      setActiveConversation(null);
-      setMessages([]);
+      if (!project) return;
+      setCurrentProject(project.name);
+      const projChats = conversations.filter((c) => c.project_id === project.id);
+      const newIndex = projChats.length + 1;
+      const title = `${project.name} - Chat ${newIndex}`;
+      const newConv = await desktopApi.createConversation(title, project.id, "gemini-3.5-flash-lite");
+      if (newConv) {
+        setActiveConversation(newConv);
+        setMessages([]);
+        await loadData();
+        showToast(`"${title}" ochildi`, "success");
+      }
+    } catch (err) {
+      console.error("[App] New project conversation error:", err);
+    }
+  };
+
+  const handleNewConversation = async () => {
+    try {
+      const targetProj = projects.find((p) => p.name === currentProject);
+      if (targetProj) {
+        await handleNewProjectConversation(targetProj);
+      } else {
+        setCurrentProject("No Project");
+        setActiveConversation(null);
+        setMessages([]);
+      }
     } catch (error) {
       console.error("[App] New conversation error:", error);
     }
@@ -73,13 +107,27 @@ export default function App() {
   const handleFolderSelected = async (newProjectName, folderPath) => {
     try {
       const created = await desktopApi.createProject(newProjectName, folderPath);
-      if (created) {
+      if (created && !created.error) {
         setProjects((prev) => [created, ...(prev || []).filter((p) => p.id !== created.id)]);
         setCurrentProject(created.name);
+
+        const initialChat = await desktopApi.createConversation(
+          `${created.name} - Chat 1`,
+          created.id,
+          "gemini-3.5-flash-lite"
+        );
+        if (initialChat) {
+          setActiveConversation(initialChat);
+          setMessages([]);
+        }
         await loadData();
+        showToast(`"${created.name}" loyihasi ochildi`, "success");
+      } else if (created?.error) {
+        showToast(created.message || "Bunday loyiha allaqachon mavjud", "error");
       }
     } catch (error) {
       console.error("[App] Folder select error:", error);
+      showToast("Loyiha yaratishda xatolik yuz berdi", "error");
     }
   };
 
@@ -95,6 +143,7 @@ export default function App() {
           }
         }
         await loadData();
+        showToast("Loyiha o'chirildi", "info");
       }
     } catch (error) {
       console.error("[App] Delete project error:", error);
@@ -110,6 +159,7 @@ export default function App() {
           setMessages([]);
         }
         await loadData();
+        showToast("Suhbat o'chirildi", "info");
       }
     } catch (error) {
       console.error("[App] Delete conversation error:", error);
@@ -211,6 +261,7 @@ export default function App() {
         onOpenFolderModal={() => setIsFolderModalOpen(true)}
         onDeleteProject={handleDeleteProject}
         onDeleteConversation={handleDeleteConversation}
+        onNewProjectConversation={handleNewProjectConversation}
       />
       <main className="flex-1 flex flex-col h-full bg-[#131314] relative overflow-hidden">
         <Header
@@ -236,6 +287,12 @@ export default function App() {
         isOpen={isFolderModalOpen}
         onClose={() => setIsFolderModalOpen(false)}
         onSelectFolder={handleFolderSelected}
+        projects={projects}
+      />
+      <Toast
+        message={toast?.message}
+        type={toast?.type}
+        onClose={() => setToast(null)}
       />
     </div>
   );

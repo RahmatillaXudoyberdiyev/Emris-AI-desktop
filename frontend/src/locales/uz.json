@@ -18,7 +18,8 @@
     "work_mode": "Work",
     "chat_mode": "Chat",
     "choose_project": "Loyiha tanlash",
-    "new_project": "+ Yangi loyiha",
+    "no_project": "Loyihasiz",
+    "new_project": "Yangi loyiha",
     "placeholder": "Nima yaratmoqchisiz yoki qanday vazifani hal qilmoqchisiz?",
     "legal_prefix": "Saytdan foydalanish orqali siz",
     "terms": "Foydalanish shartlari",
@@ -37,7 +38,8 @@
     "browse": "Ko'rib chiqish",
     "privacy_note": "Loyiha fayllari mahalliy kompyuteringizda qoladi va bulutga yuborilmaydi.",
     "cancel": "Bekor qilish",
-    "create": "Loyiha yaratish"
+    "create": "Loyiha yaratish",
+    "already_exists": "Bunday nom yoki papka yo'li bilan loyiha allaqachon mavjud"
   },
   "terminal": {
     "title": "Terminal Konsoli",
@@ -45,5 +47,12 @@
     "run": "Bajarish",
     "reject": "Rad etish",
     "output": "Ijro natijasi"
+  },
+  "modal": {
+    "confirm_title": "O'chirishni tasdiqlang",
+    "confirm_project": "Ushbu loyihani o'chirmoqchimisiz? Unga tegishli suhbatlar ham o'chiriladi.",
+    "confirm_conversation": "Ushbu suhbatni o'chirmoqchimisiz?",
+    "delete": "O'chirish",
+    "cancel": "Bekor qilish"
   }
 }
