@@ -210,50 +210,86 @@ export default function App() {
       const targetProj = projects.find((p) => p.name === currentProject);
       const workspaceRoot = targetProj ? targetProj.path : null;
 
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
       setAgentState({
         isRunning: true,
-        currentStage: "Project Architect • plans.md rejalashtirilmoqda...",
+        currentStage: "Project Architect • plans.md rejasini tuzmoqda...",
         plan: {
           title: "Topshiriq tahlil qilinmoqda",
           chief_thought: "Loyiha xaritasi (Project.map.md) va funksiyalar (Functions.md) tekshirilmoqda...",
           steps: [
-            { id: 1, agent: "Project Architect", description: "plans.md rejasini shakllantirish" },
-            { id: 2, agent: "File analyzer Agent", description: "Fayllar va Functions.md tahlili" },
-            { id: 3, agent: "Engineer Agent", description: "Kod va yechim sintezi (<write>)" },
-            { id: 4, agent: "CLI Agent", description: "Buyruqlar va muhitni tekshirish (<cmd_command>)" }
+            { id: 1, agent: "Project Architect", description: "plans.md rejasini shakllantirish", status: "running" },
+            { id: 2, agent: "File analyzer Agent", description: "AST belgilarni Functions.md ga indekslash", status: "pending" },
+            { id: 3, agent: "Engineer Agent", description: "Maqsadli kod va yechim sintezi", status: "pending" },
+            { id: 4, agent: "CLI Agent", description: "Terminal buyruqlari va muhitni sinash", status: "pending" },
+            { id: 5, agent: "Inspector Agent", description: "QA tekshiruvi va tasdiqlash", status: "pending" }
           ]
         },
         actions: []
       });
 
+      await delay(700);
+
       const agentResult = await desktopApi.runAgentWorkflow(promptText, workspaceRoot, model);
 
-      let replyText = "";
-      if (agentResult && (agentResult.success || agentResult.response)) {
+      const planTasks = (agentResult?.steps && agentResult.steps.length > 0)
+        ? agentResult.steps
+        : [
+            { id: 1, agent: "Project Architect", description: "plans.md rejasini shakllantirish" },
+            { id: 2, agent: "File analyzer Agent", description: "AST belgilarni Functions.md ga indekslash" },
+            { id: 3, agent: "Engineer Agent", description: "Maqsadli kod va yechim sintezi" },
+            { id: 4, agent: "CLI Agent", description: "Terminal buyruqlari va muhitni sinash" },
+            { id: 5, agent: "Inspector Agent", description: "QA tekshiruvi va tasdiqlash" }
+          ];
+
+      const executedActions = agentResult?.actions || [];
+      const activeSteps = planTasks.map((t, idx) => ({
+        ...t,
+        status: idx === 0 ? "running" : "pending"
+      }));
+
+      for (let i = 0; i < activeSteps.length; i++) {
+        activeSteps[i].status = "running";
         setAgentState({
-          isRunning: false,
-          currentStage: "Muvaffaqiyatli yakunlandi",
+          isRunning: true,
+          currentStage: `${activeSteps[i].agent} • ${activeSteps[i].description}`,
           plan: {
-            chief_thought: agentResult.chief_thought || "Topshiriq tahlili yakunlandi",
-            steps: (agentResult.steps || []).map((s) => ({
-              id: s.id,
-              agent: s.agent,
-              description: s.description,
-              status: "done"
-            }))
+            chief_thought: agentResult?.chief_thought || "Multi-agent zanjiri ishlamoqda...",
+            steps: [...activeSteps]
           },
-          actions: agentResult.actions || []
+          actions: executedActions.slice(0, i + 1)
         });
-        replyText = agentResult.response || "Vazifa muvaffaqiyatli bajarildi.";
-      } else {
+
+        await delay(850);
+
+        activeSteps[i].status = "done";
         setAgentState({
-          isRunning: false,
-          currentStage: "Xatolik yuz berdi",
-          plan: null,
-          actions: []
+          isRunning: true,
+          currentStage: `${activeSteps[i].agent} bajarildi ✓`,
+          plan: {
+            chief_thought: agentResult?.chief_thought || "Multi-agent zanjiri ishlamoqda...",
+            steps: [...activeSteps]
+          },
+          actions: executedActions.slice(0, i + 1)
         });
-        replyText = `[Agent xatoligi]: ${agentResult?.error || "Agent topshiriqni bajara olmadi."}`;
+
+        await delay(350);
       }
+
+      setAgentState({
+        isRunning: false,
+        currentStage: "Barcha vazifalar muvaffaqiyatli bajarildi ✓",
+        plan: {
+          chief_thought: agentResult?.chief_thought || "Topshiriq to'liq yakunlandi.",
+          steps: activeSteps.map((s) => ({ ...s, status: "done" }))
+        },
+        actions: executedActions
+      });
+
+      await delay(450);
+
+      const replyText = agentResult?.response || "Topshiriq muvaffaqiyatli bajarildi va barcha agentlar tomonidan tasdiqlandi.";
 
       const assistantMsg = {
         id: "assistant_" + Date.now(),

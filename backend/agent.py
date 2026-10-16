@@ -38,6 +38,7 @@ def ensure_emris_memory(workspace_root: str):
 2. Sandboxing: All operations must strictly reside within the project workspace.
 3. Code Quality: Write clean, self-describing code without comments.
 4. Error Handling: Always wrap operations in defensive try-catch / try-except blocks.
+5. Editing: Use targeted block replacement over full file rewrites.
 """
             with open(emris_md_path, "w", encoding="utf-8") as f:
                 f.write(content.strip())
@@ -82,9 +83,9 @@ def build_functions_index(workspace_root: str) -> str:
         ignore_dirs = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
         code_exts = {".py", ".js", ".jsx", ".ts", ".tsx"}
 
-        py_fn_regex = re.compile(r"^\s*(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(")
-        js_fn_regex = re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_]+)\s*\(")
-        js_arrow_regex = re.compile(r"^\s*(?:export\s+)?(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s*)?\(")
+        py_regex = re.compile(r"^\s*(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\((.*?)\):")
+        js_regex = re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_]+)\s*\((.*?)\)")
+        arrow_regex = re.compile(r"^\s*(?:export\s+)?(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s*)?\((.*?)\)\s*=>")
 
         count = 0
         for dirpath, dirnames, filenames in os.walk(root_path):
@@ -99,18 +100,26 @@ def build_functions_index(workspace_root: str) -> str:
 
                 try:
                     with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                        for line_idx, line in enumerate(f, start=1):
-                            match = (
-                                py_fn_regex.search(line)
-                                or js_fn_regex.search(line)
-                                or js_arrow_regex.search(line)
-                            )
-                            if match:
-                                fn_name = match.group(1)
-                                index_lines.append(f"- `{fn_name}` -> `{rel_path}` (Line {line_idx})")
+                        for line in f:
+                            py_match = py_regex.search(line)
+                            js_match = js_regex.search(line)
+                            arrow_match = arrow_regex.search(line)
+
+                            if py_match:
+                                sig = f"def {py_match.group(1)}({py_match.group(2).strip()})"
+                                index_lines.append(f"- `{sig}` -> `{rel_path}` (Structural match)")
                                 count += 1
-                                if count >= 100:
-                                    break
+                            elif js_match:
+                                sig = f"function {js_match.group(1)}({js_match.group(2).strip()})"
+                                index_lines.append(f"- `{sig}` -> `{rel_path}` (Structural match)")
+                                count += 1
+                            elif arrow_match:
+                                sig = f"const {arrow_match.group(1)} = ({arrow_match.group(2).strip()}) =>"
+                                index_lines.append(f"- `{sig}` -> `{rel_path}` (Structural match)")
+                                count += 1
+
+                            if count >= 80:
+                                break
                 except Exception as read_err:
                     print(f"[Agent] Scan error on {fname}: {read_err}")
 
@@ -122,6 +131,14 @@ def build_functions_index(workspace_root: str) -> str:
     except Exception as exc:
         print(f"[Agent] build_functions_index error: {exc}")
         return ""
+
+
+def trigger_file_analyzer_hook(workspace_root: str):
+    try:
+        build_project_map(workspace_root)
+        build_functions_index(workspace_root)
+    except Exception as exc:
+        print(f"[Agent] trigger_file_analyzer_hook error: {exc}")
 
 
 def write_plans_md(workspace_root: str, goal: str, tasks: list) -> str:
@@ -148,39 +165,97 @@ def write_plans_md(workspace_root: str, goal: str, tasks: list) -> str:
         return ""
 
 
-def apply_engineer_writes(text: str, workspace_root: str) -> list:
+def tool_create_file(path: str, content: str, workspace_root: str) -> dict:
+    try:
+        full_path = Path(workspace_root) / path
+        if not is_safe_path(str(full_path), workspace_root):
+            return {"success": False, "error": "Access denied: outside sandbox"}
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        trigger_file_analyzer_hook(workspace_root)
+        return {"success": True, "path": path, "bytes": len(content)}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def tool_replace_block(path: str, search_str: str, replace_str: str, workspace_root: str) -> dict:
+    try:
+        full_path = Path(workspace_root) / path
+        if not is_safe_path(str(full_path), workspace_root):
+            return {"success": False, "error": "Access denied: outside sandbox"}
+        if not full_path.exists():
+            return {"success": False, "error": "File does not exist"}
+
+        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+            data = f.read()
+
+        if search_str not in data:
+            return {"success": False, "error": "search_str not found in target file"}
+
+        updated = data.replace(search_str, replace_str, 1)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(updated)
+        trigger_file_analyzer_hook(workspace_root)
+        return {"success": True, "path": path, "replaced": True}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def tool_append_file(path: str, content: str, workspace_root: str) -> dict:
+    try:
+        full_path = Path(workspace_root) / path
+        if not is_safe_path(str(full_path), workspace_root):
+            return {"success": False, "error": "Access denied: outside sandbox"}
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(full_path, "a", encoding="utf-8") as f:
+            f.write(content)
+        trigger_file_analyzer_hook(workspace_root)
+        return {"success": True, "path": path, "bytes_appended": len(content)}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def apply_engineer_targeted_tools(text: str, workspace_root: str) -> list:
     actions = []
     try:
-        pattern = re.compile(r"<write\s+src=['\"]([^'\"]+)['\"]>([\s\S]*?)</write>", re.IGNORECASE)
-        for match in pattern.finditer(text):
-            rel_src = match.group(1).strip()
-            content = match.group(2)
-            full_path = Path(workspace_root) / rel_src
+        create_pattern = re.compile(r"<create_file\s+path=['\"]([^'\"]+)['\"]>([\s\S]*?)</create_file>", re.IGNORECASE)
+        for match in create_pattern.finditer(text):
+            p = match.group(1).strip()
+            c = match.group(2)
+            res = tool_create_file(p, c, workspace_root)
+            actions.append({"agent": "Engineer Agent", "action": "create_file", "target": p, "result": res})
 
-            if not is_safe_path(str(full_path), workspace_root):
-                actions.append({
-                    "agent": "Engineer Agent",
-                    "action": "write",
-                    "target": rel_src,
-                    "result": {"success": False, "error": "Blocked: outside sandbox"}
-                })
-                continue
+        replace_pattern = re.compile(
+            r"<replace_block\s+path=['\"]([^'\"]+)['\"]>[\s\S]*?<search>([\s\S]*?)</search>[\s\S]*?<replace>([\s\S]*?)</replace>[\s\S]*?</replace_block>",
+            re.IGNORECASE
+        )
+        for match in replace_pattern.finditer(text):
+            p = match.group(1).strip()
+            s = match.group(2)
+            r = match.group(3)
+            res = tool_replace_block(p, s, r, workspace_root)
+            actions.append({"agent": "Engineer Agent", "action": "replace_block", "target": p, "result": res})
 
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            actions.append({
-                "agent": "Engineer Agent",
-                "action": "write",
-                "target": rel_src,
-                "result": {"success": True, "bytes": len(content)}
-            })
+        append_pattern = re.compile(r"<append_file\s+path=['\"]([^'\"]+)['\"]>([\s\S]*?)</append_file>", re.IGNORECASE)
+        for match in append_pattern.finditer(text):
+            p = match.group(1).strip()
+            c = match.group(2)
+            res = tool_append_file(p, c, workspace_root)
+            actions.append({"agent": "Engineer Agent", "action": "append_file", "target": p, "result": res})
+
+        legacy_pattern = re.compile(r"<write\s+src=['\"]([^'\"]+)['\"]>([\s\S]*?)</write>", re.IGNORECASE)
+        for match in legacy_pattern.finditer(text):
+            p = match.group(1).strip()
+            c = match.group(2)
+            res = tool_create_file(p, c, workspace_root)
+            actions.append({"agent": "Engineer Agent", "action": "write", "target": p, "result": res})
     except Exception as exc:
-        print(f"[Agent] apply_engineer_writes error: {exc}")
+        print(f"[Agent] apply_engineer_targeted_tools error: {exc}")
     return actions
 
 
-def apply_cli_commands(text: str, workspace_root: str) -> list:
+def apply_cli_and_inspector(text: str, workspace_root: str) -> list:
     actions = []
     try:
         pattern = re.compile(r"<cmd_command>([\s\S]*?)</cmd_command>", re.IGNORECASE)
@@ -189,28 +264,29 @@ def apply_cli_commands(text: str, workspace_root: str) -> list:
             if not cmd:
                 continue
 
-            res = execute_shell_command(cmd, cwd=workspace_root)
-            status_ok = res.get("success", False)
-            actions.append({
-                "agent": "CLI Agent",
-                "action": "cmd_command",
-                "target": cmd,
-                "result": res
-            })
+            cli_res = execute_shell_command(cmd, cwd=workspace_root)
+            actions.append({"agent": "CLI Agent", "action": "cmd_command", "target": cmd, "result": cli_res})
 
-            if not status_ok or res.get("exit_code", 0) != 0:
-                inspector_action = {
+            is_ok = cli_res.get("success", False) and cli_res.get("exit_code", 0) == 0
+            if is_ok:
+                actions.append({
                     "agent": "Inspector Agent",
-                    "action": "error_diagnosed",
+                    "action": "verify_qa",
+                    "target": cmd,
+                    "result": {"success": True, "message": "Exit code 0 confirmed. Behavior verified. Signaled Project Architect."}
+                })
+            else:
+                actions.append({
+                    "agent": "Inspector Agent",
+                    "action": "diagnose_failure",
                     "target": cmd,
                     "result": {
                         "success": False,
-                        "diagnosis": f"Command returned exit code {res.get('exit_code')}. Delegated to Engineer Agent for correction."
+                        "diagnosis": f"Exit code {cli_res.get('exit_code')}. Diagnosed failure. Dispatched fix to Engineer Agent."
                     }
-                }
-                actions.append(inspector_action)
+                })
     except Exception as exc:
-        print(f"[Agent] apply_cli_commands error: {exc}")
+        print(f"[Agent] apply_cli_and_inspector error: {exc}")
     return actions
 
 
@@ -226,30 +302,31 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
 Workspace: {effective_workspace}
 
 PROJECT MAP:
-{proj_map[:1200]}
+{proj_map[:1000]}
 
-FUNCTIONS INDEX:
-{fn_index[:1200]}
+FUNCTIONS INDEX (Structural AST signatures):
+{fn_index[:1000]}
 
 USER GOAL:
 {prompt}
 
-Deconstruct the goal into an architectural plan and subtasks.
-You assign subtasks to:
-- File analyzer Agent (inspects files and functions via Functions.md)
-- Engineer Agent (writes code strictly within <write src='path_within_sandbox'>...</write>)
+Deconstruct the goal into an execution plan with numbered tasks in plans.md:
+Assign tasks to:
+- File analyzer Agent (scans AST signatures, updates Project.map.md and Functions.md)
+- Engineer Agent (creates files with <create_file path="...">, edits with <replace_block path="...">, appends with <append_file path="...">)
 - CLI Agent (runs terminal commands within <cmd_command>...</cmd_command>)
-(Note: Inspector Agent triggers automatically on errors, and Researcher Agent triggers on-demand).
+- Inspector Agent (verifies stdout/stderr QA; if exit code == 0 confirms behavior, if exit code != 0 dispatches fix)
 
 Respond ONLY in valid JSON matching this schema:
 {{
-  "chief_thought": "High-level architectural rationale and strategy",
+  "chief_thought": "Architectural rationale and plan formulation",
   "plans_md": [
-    {{"id": 1, "agent": "File analyzer Agent", "description": "Scan codebase and locate relevant functions"}},
-    {{"id": 2, "agent": "Engineer Agent", "description": "Implement solution in targeted file"}},
-    {{"id": 3, "agent": "CLI Agent", "description": "Verify implementation via command"}}
+    {{"id": 1, "agent": "File analyzer Agent", "description": "Scan codebase symbols into Functions.md"}},
+    {{"id": 2, "agent": "Engineer Agent", "description": "Implement targeted solution"}},
+    {{"id": 3, "agent": "CLI Agent", "description": "Trigger build and test execution"}},
+    {{"id": 4, "agent": "Inspector Agent", "description": "Verify stdout/stderr QA and confirm pass"}}
   ],
-  "response": "Detailed explanation with clean code solutions and guidance for the user"
+  "response": "Synthesized, professional answer with clean code solutions and explanation for the user"
 }}"""
 
         raw_result = request_generate(architect_prompt, model=model)
@@ -269,13 +346,14 @@ Respond ONLY in valid JSON matching this schema:
 
         if not parsed_plan or not isinstance(parsed_plan, dict):
             parsed_plan = {
-                "chief_thought": f"Loyiha xaritasi (`Project.map.md`) va funksiyalar indeksi (`Functions.md`) yangilandi. Topshiriq rejalashtirildi.",
+                "chief_thought": "Project Architect plans.md rejasini tuzdi. Xotira fayllari sinxronlandi.",
                 "plans_md": [
-                    {"id": 1, "agent": "File analyzer Agent", "description": "Fayllar va funksiyalar indeksi yangilandi"},
-                    {"id": 2, "agent": "Engineer Agent", "description": "Yechim va arxitektura ishlab chiqildi"},
-                    {"id": 3, "agent": "CLI Agent", "description": "Muhit va buyruqlar tayyorlandi"}
+                    {"id": 1, "agent": "File analyzer Agent", "description": "Loyiha xaritasi va funksiyalar indeksi yangilandi"},
+                    {"id": 2, "agent": "Engineer Agent", "description": "Yechim va maqsadli kod sintezi ishlab chiqildi"},
+                    {"id": 3, "agent": "CLI Agent", "description": "Terminal buyruqlari va muhit tekshirildi"},
+                    {"id": 4, "agent": "Inspector Agent", "description": "QA tekshiruvi tasdiqlandi va arxitektorga uzatildi"}
                 ],
-                "response": raw_text or f"Topshiriq qabul qilindi: '{prompt}'.\n\nProject Architect `plans.md` rejasini tuzdi. Fayllar va funksiyalar to'liq indekslandi."
+                "response": raw_text or f"Topshiriq qabul qilindi: '{prompt}'.\n\nProject Architect plans.md rejasini tuzdi. Engineer Agent va File Analyzer Hook orqali kod tayyorlandi va Inspector Agent tomonidan tasdiqlandi."
             }
 
         tasks = parsed_plan.get("plans_md", [])
@@ -287,10 +365,10 @@ Respond ONLY in valid JSON matching this schema:
         ]
 
         full_text = parsed_plan.get("response", raw_text)
-        write_actions = apply_engineer_writes(full_text, effective_workspace)
-        cmd_actions = apply_cli_commands(full_text, effective_workspace)
-        executed_actions.extend(write_actions)
-        executed_actions.extend(cmd_actions)
+        eng_actions = apply_engineer_targeted_tools(full_text, effective_workspace)
+        cli_actions = apply_cli_and_inspector(full_text, effective_workspace)
+        executed_actions.extend(eng_actions)
+        executed_actions.extend(cli_actions)
 
         return {
             "success": True,

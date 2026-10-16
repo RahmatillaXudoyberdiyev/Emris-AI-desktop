@@ -326,13 +326,15 @@ export const desktopApi = {
         success: true,
         chief_thought: "Project Architect topshiriqni tahlil qildi va plans.md rejasini shakllantirdi.",
         steps: [
-          { id: 1, agent: "File analyzer Agent", action: "index_functions", description: "Fayllar va Functions.md tahlil qilindi" },
-          { id: 2, agent: "Engineer Agent", action: "write", description: "Yechim va kod sintezi ishlab chiqildi" },
-          { id: 3, agent: "CLI Agent", action: "cmd_command", description: "Buyruqlar va muhit tekshirildi" }
+          { id: 1, agent: "File analyzer Agent", action: "index_functions", description: "Loyiha xaritasi va funksiyalar indeksi yangilandi" },
+          { id: 2, agent: "Engineer Agent", action: "replace_block", description: "Yechim va maqsadli kod sintezi ishlab chiqildi" },
+          { id: 3, agent: "CLI Agent", action: "cmd_command", description: "Terminal buyruqlari va testlar bajarildi" },
+          { id: 4, agent: "Inspector Agent", action: "verify_qa", description: "QA tekshiruvi tasdiqlandi va arxitektorga uzatildi" }
         ],
         actions: [
           { agent: "Project Architect", action: "write_plans", target: "plans.md", result: { success: true } },
-          { agent: "File analyzer Agent", action: "index_functions", target: "Functions.md", result: { success: true } }
+          { agent: "File analyzer Agent", action: "index_functions", target: "Functions.md", result: { success: true } },
+          { agent: "Inspector Agent", action: "verify_qa", target: "stdout/stderr", result: { success: true } }
         ],
         response: `Topshiriq tahlil qilindi: "${prompt}".\n\nProject Architect plans.md rejasini tuzdi. File analyzer Agent funksiyalarni Functions.md ga kiritdi va Engineer Agent topshiriqni yakunladi.`
       };
