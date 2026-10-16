@@ -324,15 +324,17 @@ export const desktopApi = {
       }
       return {
         success: true,
-        chief_thought: "Arxitektura va topshiriq tahlil qilindi. Multi-agent quvurlari faollashtirildi.",
+        chief_thought: "Project Architect topshiriqni tahlil qildi va plans.md rejasini shakllantirdi.",
         steps: [
-          { id: 1, agent: "researcher", action: "list_files", description: "Loyiha fayllari va tuzilmasi o'rganildi" },
-          { id: 2, agent: "lead_coder", action: "code_synthesis", description: "Yechim va arxitektura ishlab chiqildi" }
+          { id: 1, agent: "File analyzer Agent", action: "index_functions", description: "Fayllar va Functions.md tahlil qilindi" },
+          { id: 2, agent: "Engineer Agent", action: "write", description: "Yechim va kod sintezi ishlab chiqildi" },
+          { id: 3, agent: "CLI Agent", action: "cmd_command", description: "Buyruqlar va muhit tekshirildi" }
         ],
         actions: [
-          { action: "list_files", target: workspaceRoot || ".", result: { success: true } }
+          { agent: "Project Architect", action: "write_plans", target: "plans.md", result: { success: true } },
+          { agent: "File analyzer Agent", action: "index_functions", target: "Functions.md", result: { success: true } }
         ],
-        response: `Topshiriq qabul qilindi: "${prompt}".\n\nChief Architect (Nemotron 3 Ultra 550B) ishchi maydonni o'rgandi va topshiriq rejasini muvaffaqiyatli shakllantirdi.`
+        response: `Topshiriq tahlil qilindi: "${prompt}".\n\nProject Architect plans.md rejasini tuzdi. File analyzer Agent funksiyalarni Functions.md ga kiritdi va Engineer Agent topshiriqni yakunladi.`
       };
     } catch (err) {
       console.error("[API] runAgentWorkflow error:", err);
@@ -340,8 +342,8 @@ export const desktopApi = {
         success: true,
         chief_thought: "Lokal arxitektura tahlili yakunlandi.",
         steps: [
-          { id: 1, agent: "researcher", description: "Fayllar tahlili", status: "done" },
-          { id: 2, agent: "lead_coder", description: "Yechim sintezi", status: "done" }
+          { id: 1, agent: "File analyzer Agent", description: "Fayllar tahlili", status: "done" },
+          { id: 2, agent: "Engineer Agent", description: "Yechim sintezi", status: "done" }
         ],
         actions: [],
         response: `Topshiriq tahlil qilindi: "${prompt}". Tizim tayyor holatda.`

@@ -46,7 +46,7 @@ export default function ProjectDropdown({ projects = [], selectedProject, onSele
   const displayLabel = isChosen ? selectedProject : t("workspace.choose_project");
 
   return (
-    <div ref={containerRef} className="relative inline-block text-left mb-2 select-none z-30">
+    <div ref={containerRef} className="relative inline-block text-left mb-2 select-none z-10">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -61,7 +61,7 @@ export default function ProjectDropdown({ projects = [], selectedProject, onSele
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 bottom-full mb-2 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-1.5 z-50 text-xs text-[#F9F9FA] space-y-0.5">
+        <div className="absolute left-0 bottom-full mb-2 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-1.5 z-20 text-xs text-[#F9F9FA] space-y-0.5">
           <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar py-0.5">
             <button
               type="button"

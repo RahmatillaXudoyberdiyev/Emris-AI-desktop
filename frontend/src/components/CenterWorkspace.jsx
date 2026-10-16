@@ -92,7 +92,7 @@ export default function CenterWorkspace({
 
   if (messages.length > 0 || agentState) {
     return (
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#131314]">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#131314] relative z-0">
         <div className="flex items-center justify-between px-6 py-2.5 border-b border-[#222226] bg-[#161618] text-xs text-[#a1a1aa] flex-shrink-0">
           <div className="flex items-center gap-2 truncate">
             <span className="font-medium text-[#e4e4e7] truncate">
@@ -217,7 +217,7 @@ export default function CenterWorkspace({
   }
 
   return (
-    <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar bg-[#131314]">
+    <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar bg-[#131314] relative z-0">
       <div className="w-full max-w-3xl flex flex-col justify-center space-y-3">
         <div className="w-full text-left">
           <ProjectDropdown

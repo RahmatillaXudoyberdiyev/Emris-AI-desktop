@@ -158,15 +158,14 @@ export default function App() {
 
   const handleDeleteConversation = async (convId) => {
     try {
-      setConversations((prev) => (prev || []).filter((c) => String(c.id) !== String(convId)));
-      const success = await desktopApi.deleteConversation(convId);
-      if (success) {
-        if (activeConversation && String(activeConversation.id) === String(convId)) {
-          setActiveConversation(null);
-          setMessages([]);
-        }
-        await loadData();
+      if (activeConversation && String(activeConversation.id) === String(convId)) {
+        setActiveConversation(null);
+        setMessages([]);
+        setAgentState(null);
       }
+      setConversations((prev) => (prev || []).filter((c) => String(c.id) !== String(convId)));
+      await desktopApi.deleteConversation(convId);
+      await loadData();
     } catch (error) {
       console.error("[App] Delete conversation error:", error);
     }
@@ -213,13 +212,15 @@ export default function App() {
 
       setAgentState({
         isRunning: true,
-        currentStage: "Chief Agent: Reja va tahlil shakllantirilmoqda...",
+        currentStage: "Project Architect • plans.md rejalashtirilmoqda...",
         plan: {
           title: "Topshiriq tahlil qilinmoqda",
-          chief_thought: "Loyiha arxitekturasi va konteksti o'rganilmoqda...",
+          chief_thought: "Loyiha xaritasi (Project.map.md) va funksiyalar (Functions.md) tekshirilmoqda...",
           steps: [
-            { id: 1, agent: "researcher", description: "Loyiha fayllari va tuzilmasi tekshirilmoqda", status: "running" },
-            { id: 2, agent: "lead_coder", description: "Yechim va arxitektura ishlab chiqilmoqda", status: "pending" }
+            { id: 1, agent: "Project Architect", description: "plans.md rejasini shakllantirish" },
+            { id: 2, agent: "File analyzer Agent", description: "Fayllar va Functions.md tahlili" },
+            { id: 3, agent: "Engineer Agent", description: "Kod va yechim sintezi (<write>)" },
+            { id: 4, agent: "CLI Agent", description: "Buyruqlar va muhitni tekshirish (<cmd_command>)" }
           ]
         },
         actions: []

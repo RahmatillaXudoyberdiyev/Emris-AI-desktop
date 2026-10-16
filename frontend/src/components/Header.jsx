@@ -116,7 +116,7 @@ export default function Header({
   };
 
   return (
-    <header className="h-14 border-b border-[#26262a] bg-[#151515] px-5 flex items-center justify-between flex-shrink-0 z-20 select-none">
+    <header className="h-14 border-b border-[#26262a] bg-[#151515] px-5 flex items-center justify-between flex-shrink-0 z-30 select-none">
       <div className="flex items-center gap-3">
         <div ref={projectRef} className="relative">
           <button
@@ -124,7 +124,7 @@ export default function Header({
             onClick={() => setIsProjectOpen(!isProjectOpen)}
             className="text-xs text-[#F9F9FA] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition-colors cursor-pointer"
           >
-            <i className="fa-solid fa-folder text-[#f59e0b]"></i>
+            <i className="fa-solid fa-folder text-[#94a3b8]"></i>
             <span className="font-medium">{currentProject && currentProject !== "No Project" ? currentProject : t("workspace.no_project")}</span>
             <i className="fa-solid fa-chevron-down text-[8px] text-[#64748b] ml-0.5"></i>
           </button>
@@ -172,7 +172,7 @@ export default function Header({
                       }`}
                     >
                       <div className="flex items-center gap-2.5 truncate">
-                        <i className="fa-solid fa-folder text-[#f59e0b] text-xs flex-shrink-0"></i>
+                        <i className="fa-solid fa-folder text-[#94a3b8] text-xs flex-shrink-0"></i>
                         <span className="truncate">{p.name}</span>
                       </div>
                       {isSelected && <i className="fa-solid fa-check text-[#60a5fa] text-[10px]"></i>}
@@ -266,7 +266,7 @@ export default function Header({
           type="button"
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#D1D1D6] hover:text-[#F9F9FA] text-xs transition-colors cursor-pointer"
         >
-          <i className="fa-solid fa-key text-[#f59e0b] text-xs"></i>
+          <i className="fa-solid fa-key text-[#94a3b8] text-xs"></i>
           <span>{t("header.api_keys")}</span>
         </button>
       </div>

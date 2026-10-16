@@ -58,7 +58,7 @@ export default function Sidebar({
   return (
     <aside
       id="sidebar"
-      className="w-64 h-full max-h-screen bg-[#151515] border-r border-[#26262a] flex flex-col flex-shrink-0 overflow-hidden z-30 select-none text-[#F9F9FA]"
+      className="w-64 h-full max-h-screen bg-[#151515] border-r border-[#26262a] flex flex-col flex-shrink-0 overflow-hidden z-40 select-none text-[#F9F9FA]"
     >
       <div className="p-3 border-b border-[#26262a] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
