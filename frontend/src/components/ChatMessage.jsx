@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import AgentActivityCard from "./AgentActivityCard";
 
 export default function ChatMessage({ message, currentModelLabel }) {
   const [copiedIndex, setCopiedIndex] = useState(null);
@@ -86,22 +87,48 @@ export default function ChatMessage({ message, currentModelLabel }) {
     );
   }
 
+  let workflow = message.workflow || null;
+  let rawContent = message.content || "";
+
+  if (rawContent.startsWith("<!--workflow:")) {
+    const endIdx = rawContent.indexOf("-->");
+    if (endIdx !== -1) {
+      try {
+        workflow = JSON.parse(rawContent.slice(13, endIdx));
+        rawContent = rawContent.slice(endIdx + 3).trim();
+      } catch (e) {
+        console.error("[ChatMessage] Workflow parse error:", e);
+      }
+    }
+  }
+
   return (
-    <div className="flex justify-start w-full">
-      <div className="w-full rounded-2xl p-4 sm:p-5 bg-[#18181b] border border-[#27272a] text-[#f4f4f5] text-sm leading-relaxed shadow-sm">
-        <div className="flex items-center justify-between border-b border-[#27272a] pb-2.5 mb-3 text-xs text-[#a1a1aa]">
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#27272a] text-[#d4d4d8]">
-              <i className="fa-solid fa-cube text-[10px]"></i>
-            </span>
-            <span className="font-semibold text-[#e4e4e7] tracking-tight">Emris AI</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#27272a] text-[#a1a1aa] border border-[#3f3f46]/40">
-              {currentModelLabel || "Nemotron 3 Ultra 550B"}
-            </span>
+    <div className="flex flex-col w-full space-y-2">
+      {workflow && (
+        <AgentActivityCard
+          isRunning={false}
+          currentStage="Barcha vazifalar muvaffaqiyatli bajarildi ✓"
+          plan={workflow.plan || { steps: workflow.steps }}
+          actions={workflow.actions || []}
+        />
+      )}
+
+      <div className="flex justify-start w-full">
+        <div className="w-full rounded-2xl p-4 sm:p-5 bg-[#18181b] border border-[#27272a] text-[#f4f4f5] text-sm leading-relaxed shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#27272a] pb-2.5 mb-3 text-xs text-[#a1a1aa]">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#27272a] text-[#d4d4d8]">
+                <i className="fa-solid fa-cube text-[10px]"></i>
+              </span>
+              <span className="font-semibold text-[#e4e4e7] tracking-tight">Emris AI</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#222226] text-[#a1a1aa] border border-[#3f3f46]/40">
+                {currentModelLabel || "Nemotron 3 Ultra 550B"}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="text-[13px] text-[#e4e4e7] space-y-2">
-          {renderContent(message.content)}
+          <div className="text-[13px] text-[#e4e4e7] space-y-2">
+            {renderContent(rawContent)}
+          </div>
         </div>
       </div>
     </div>
