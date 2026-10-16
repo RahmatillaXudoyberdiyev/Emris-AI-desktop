@@ -236,9 +236,9 @@ export default function App() {
       const planTasks = (agentResult?.steps && agentResult.steps.length > 0)
         ? agentResult.steps
         : [
-            { id: 1, agent: "Project Architect", model: "Nemotron 3 Ultra 550B", description: "Loyiha arxitekturasi va strategik rejalashtirish", output: "Loyiha talablari dekonstruksiya qilindi va plans.md rejasiga kiritildi." },
+            { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Loyiha arxitekturasi va rejalashtirish", output: "Arxitektura rejalashtirildi" },
             { id: 2, agent: "File analyzer Agent", model: "Gemini 3.5 Flash Lite", description: "AST signaturalari va kod xaritasini sinxronlash", output: "Functions.md va Project.map.md muvaffaqiyatli yangilandi." },
-            { id: 3, agent: "Engineer Agent", model: "Nemotron 3 Super 120B", description: "Xavfsiz kod yozish va maqsadli blok sintezi", output: "Nemotron 3 Super 120B orqali maqsadli kod bloklari ishlab chiqildi." },
+            { id: 3, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Xavfsiz kod yozish va maqsadli blok sintezi", output: "Kod bloklari ishlab chiqildi." },
             { id: 4, agent: "CLI Agent", model: "Gemini 3.5 Flash Lite", description: "Terminal buyruqlari va sintaksis tekshiruvi", output: "Sintaksis va kompilyatsiya tekshirildi (Exit code 0)." },
             { id: 5, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", description: "QA sifat tekshiruvi va tasdiqlash", output: "QA tahlili muvaffaqiyatli tasdiqlandi. Xatoliklar aniqlanmadi." }
           ];

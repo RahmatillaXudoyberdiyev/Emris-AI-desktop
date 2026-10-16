@@ -10,6 +10,21 @@ import winreg
 from pathlib import Path
 
 
+def _load_env_file():
+    try:
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ[k.strip()] = v.strip()
+    except Exception as exc:
+        print(f"[Gateway] Env load notice: {exc}")
+
+_load_env_file()
+
 ACTIVE_CREDENTIALS = {
     "gemini": os.getenv("GEMINI_API_KEY", ""),
     "kilo": os.getenv("KILO_API_KEY", ""),
@@ -168,7 +183,47 @@ def get_device_quota() -> dict:
         return {"error": str(exc)}
 
 
+def generate_with_gemini_direct(prompt: str, model: str = "gemini-3.5-flash-lite", history: list = None) -> dict:
+    try:
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        if not api_key:
+            return {"success": False, "error": "No GEMINI_API_KEY configured"}
+        model_name = "gemini-3.5-flash-lite"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        contents = []
+        if history:
+            for h in history:
+                role = "user" if h.get("role") == "user" else "model"
+                contents.append({"role": role, "parts": [{"text": h.get("content", "")}]})
+        contents.append({"role": "user", "parts": [{"text": prompt}]})
+        payload = {
+            "contents": contents,
+            "generationConfig": {"temperature": 0.2}
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=40) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidate = data.get("candidates", [{}])[0]
+            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+            return {"success": True, "data": {"response": text, "text": text}}
+    except Exception as exc:
+        print(f"[Gateway] Gemini direct error: {exc}")
+        return {"success": False, "error": str(exc)}
+
+
 def request_generate(prompt: str, model: str = "gemini-3.5-flash-lite", history: list = None) -> dict:
+    try:
+        direct_res = generate_with_gemini_direct(prompt, model, history)
+        if direct_res.get("success") and direct_res.get("data"):
+            return direct_res
+    except Exception as exc:
+        print(f"[Gateway] Direct generation attempt notice: {exc}")
+
     try:
         base_url = get_base_gateway_url()
         url = f"{base_url}/generate"
@@ -192,7 +247,6 @@ def request_generate(prompt: str, model: str = "gemini-3.5-flash-lite", history:
             "User-Agent": "EmrisAIDesktop/1.1"
         }
 
-        print(f"[Gateway] Sending generate request to {url} for device: {device_id[:8]}...")
         req = urllib.request.Request(
             url,
             data=body_json.encode("utf-8"),

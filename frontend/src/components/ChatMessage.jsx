@@ -122,7 +122,7 @@ export default function ChatMessage({ message, currentModelLabel }) {
               </span>
               <span className="font-semibold text-[#e4e4e7] tracking-tight">Emris AI</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#222226] text-[#a1a1aa] border border-[#3f3f46]/40">
-                {currentModelLabel || "Nemotron 3 Ultra 550B"}
+                {currentModelLabel || "Gemini 3.5 Flash Lite"}
               </span>
             </div>
           </div>

@@ -78,7 +78,7 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
               {isRunning ? "Agent Workflow Running" : "Agent Workflow Completed"}
             </span>
             <span className="px-2 py-0.5 rounded-md text-[10px] font-mono text-[#a1a1aa] bg-[#222226] border border-[#2e2e32]">
-              {currentStage || (isRunning ? "Project Architect • Nemotron 3 Ultra 550B" : `${steps.length} tasks`)}
+              {currentStage || (isRunning ? "Project Architect • Gemini 3.5 Flash Lite" : `${steps.length} tasks`)}
             </span>
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
                 {steps.map((st, idx) => {
                   const isRunningStep = st.status === "running";
                   const isDoneStep = st.status === "done";
-                  const modelBadge = st.model || (st.agent?.includes("Architect") ? "Nemotron 3 Ultra 550B" : st.agent?.includes("Engineer") ? "Nemotron 3 Super 120B" : "Gemini 3.5 Flash Lite");
+                  const modelBadge = st.model || "Gemini 3.5 Flash Lite";
 
                   return (
                     <div
