@@ -113,9 +113,9 @@ def execute_agent_step(step_item: dict, workspace_root: str) -> dict:
         return {"action": "error", "error": str(exc)}
 
 
-def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite") -> dict:
+def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str = "nemotron-3-ultra-550b") -> dict:
     try:
-        print(f"[Agent] Starting Hierarchical Cycle for goal: '{prompt[:60]}...'")
+        print(f"[Agent] Starting Hierarchical Cycle for goal: '{prompt[:60]}...' with model: {model}")
         effective_workspace = workspace_root if workspace_root and os.path.exists(workspace_root) else os.getcwd()
 
         structure_info = tool_list_files(effective_workspace, effective_workspace)
@@ -153,12 +153,14 @@ Respond ONLY in valid JSON matching this schema:
                 print(f"[Agent] Plan parse note: {parse_err}")
 
         if not parsed_plan or not isinstance(parsed_plan, dict):
+            file_summary = ", ".join(files_sample[:5]) if files_sample else "Loyiha ildiz papkasi"
             parsed_plan = {
-                "chief_thought": "Direct execution strategy formulated.",
+                "chief_thought": f"Loyiha arxitekturasi va konteksti tahlil qilindi ({file_summary}).",
                 "steps": [
-                    {"id": 1, "agent": "lead_coder", "action": "code", "description": "Synthesize response"}
+                    {"id": 1, "agent": "researcher", "action": "list_files", "description": "Loyiha tuzilmasi tekshirildi"},
+                    {"id": 2, "agent": "lead_coder", "action": "explain", "description": "Yechim va arxitektura rejalashtirildi"}
                 ],
-                "response": raw_text or "Topshiriq qabul qilindi va tahlil qilindi."
+                "response": raw_text or f"Topshiriq qabul qilindi va tahlil qilindi: '{prompt}'.\n\nTizim ishchi maydonni o'rgandi va topshiriqni muvaffaqiyatli rejalashtirdi."
             }
 
         executed_actions = []

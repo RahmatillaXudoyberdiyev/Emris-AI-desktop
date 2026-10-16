@@ -3,7 +3,6 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import CenterWorkspace from "./components/CenterWorkspace";
 import ChooseFolderModal from "./components/ChooseFolderModal";
-import Toast from "./components/Toast";
 import { desktopApi } from "./services/api";
 
 export default function App() {
@@ -14,15 +13,6 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [agentState, setAgentState] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (message, type = "info") => {
-    try {
-      setToast({ message, type });
-    } catch (err) {
-      console.error("[App] Show toast error:", err);
-    }
-  };
 
   const loadData = async () => {
     try {
@@ -66,7 +56,6 @@ export default function App() {
         setActiveConversation(newConv);
         setMessages([]);
         await loadData();
-        showToast(`"${title}" ochildi`, "success");
       }
     } catch (err) {
       console.error("[App] New project conversation error:", err);
@@ -121,13 +110,9 @@ export default function App() {
           setMessages([]);
         }
         await loadData();
-        showToast(`"${created.name}" loyihasi ochildi`, "success");
-      } else if (created?.error) {
-        showToast(created.message || "Bunday loyiha allaqachon mavjud", "error");
       }
     } catch (error) {
       console.error("[App] Folder select error:", error);
-      showToast("Loyiha yaratishda xatolik yuz berdi", "error");
     }
   };
 
@@ -143,7 +128,6 @@ export default function App() {
           }
         }
         await loadData();
-        showToast("Loyiha o'chirildi", "info");
       }
     } catch (error) {
       console.error("[App] Delete project error:", error);
@@ -159,7 +143,6 @@ export default function App() {
           setMessages([]);
         }
         await loadData();
-        showToast("Suhbat o'chirildi", "info");
       }
     } catch (error) {
       console.error("[App] Delete conversation error:", error);
@@ -201,9 +184,10 @@ export default function App() {
           currentStage: "Chief Agent: Reja va tahlil shakllantirilmoqda...",
           plan: {
             title: "Topshiriq tahlil qilinmoqda",
+            chief_thought: "Loyiha tuzilmasi va foydalanuvchi maqsadi o'rganilmoqda...",
             steps: [
-              { id: 1, agent: "researcher", description: "Loyiha tuzilmasini o'rganish", status: "running" },
-              { id: 2, agent: "lead_coder", description: "Yechim va kod generatsiyasi", status: "pending" }
+              { id: 1, agent: "researcher", description: "Loyiha fayllari va tuzilmasini o'rganish", status: "running" },
+              { id: 2, agent: "lead_coder", description: "Yechim va arxitektura sintezi", status: "pending" }
             ]
           },
           actions: []
@@ -217,7 +201,7 @@ export default function App() {
             isRunning: false,
             currentStage: "Muvaffaqiyatli yakunlandi",
             plan: {
-              title: agentResult.chief_thought || "Topshiriq bajarildi",
+              chief_thought: agentResult.chief_thought || "Topshiriq tahlili yakunlandi",
               steps: (agentResult.steps || []).map((s) => ({
                 id: s.id,
                 agent: s.agent,
@@ -249,7 +233,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-[#131314] text-[#F9F9FA] antialiased selection:bg-[#2563eb] selection:text-white">
+    <div className="h-screen w-screen flex overflow-hidden bg-[#131314] text-[#F9F9FA] antialiased selection:bg-[#27272a] selection:text-white">
       <Sidebar
         projects={projects}
         conversations={conversations}
@@ -288,11 +272,6 @@ export default function App() {
         onClose={() => setIsFolderModalOpen(false)}
         onSelectFolder={handleFolderSelected}
         projects={projects}
-      />
-      <Toast
-        message={toast?.message}
-        type={toast?.type}
-        onClose={() => setToast(null)}
       />
     </div>
   );

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ProjectDropdown from "./ProjectDropdown";
 import AgentActivityCard from "./AgentActivityCard";
+import ChatMessage from "./ChatMessage";
 import { MODEL_OPTIONS } from "../constants/uiData";
 import { useTranslation } from "../i18n/LanguageContext";
 import { desktopApi } from "../services/api";
@@ -21,6 +22,18 @@ export default function CenterWorkspace({
   const [selectedTab, setSelectedTab] = useState("work");
   const [selectedModel, setSelectedModel] = useState("gemini-3.5-flash-lite");
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      if (messages.length > 0 || agentState) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    } catch (err) {
+      console.error("[Workspace] Auto-scroll error:", err);
+    }
+  }, [messages, agentState]);
 
   const handleChatTabClick = async () => {
     try {
@@ -40,52 +53,172 @@ export default function CenterWorkspace({
 
   const handleFormSubmit = (e) => {
     try {
-      e.preventDefault();
+      if (e) e.preventDefault();
       if (!promptText.trim() || agentState?.isRunning) return;
       if (onSubmitPrompt) {
         onSubmitPrompt(promptText.trim(), selectedModel);
       }
       setPromptText("");
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
     } catch (error) {
       console.error("[Workspace] Error submitting prompt:", error);
     }
   };
 
+  const handleKeyDown = (e) => {
+    try {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleFormSubmit();
+      }
+    } catch (error) {
+      console.error("[Workspace] Keydown error:", error);
+    }
+  };
+
+  const handleTextareaInput = (e) => {
+    try {
+      setPromptText(e.target.value);
+      e.target.style.height = "auto";
+      e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+    } catch (err) {
+      console.error("[Workspace] Textarea input error:", err);
+    }
+  };
+
   const currentModelLabel = MODEL_OPTIONS.find((m) => m.value === selectedModel)?.label || "Gemini 3.5 Flash Lite";
+
+  if (messages.length > 0 || agentState) {
+    return (
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#131314]">
+        <div className="flex items-center justify-between px-6 py-2.5 border-b border-[#222226] bg-[#161618] text-xs text-[#a1a1aa] flex-shrink-0">
+          <div className="flex items-center gap-2 truncate">
+            <span className="font-medium text-[#e4e4e7] truncate">
+              {activeConversation?.title || t("workspace.chat_mode")}
+            </span>
+            <span className="text-[#52525b]">•</span>
+            <span className="px-2 py-0.5 rounded-md bg-[#222226] text-[#a1a1aa] text-[11px] font-mono">
+              {currentProject}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenFolderModal}
+              className="px-2.5 py-1 rounded-lg bg-[#222226] hover:bg-[#27272a] text-[#d4d4d8] text-[11px] transition-colors cursor-pointer"
+            >
+              <i className="fa-solid fa-folder-open text-[10px] mr-1.5 text-[#a1a1aa]"></i>
+              <span>{t("workspace.choose_folder")}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
+          <div className="max-w-3xl w-full mx-auto space-y-4">
+            {messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                currentModelLabel={currentModelLabel}
+              />
+            ))}
+
+            {agentState && (
+              <div className="w-full pt-1">
+                <AgentActivityCard
+                  isRunning={agentState.isRunning}
+                  currentStage={agentState.currentStage}
+                  plan={agentState.plan}
+                  actions={agentState.actions}
+                  onCancel={onCancelAgent}
+                />
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        <div className="w-full border-t border-[#222226] bg-[#131314]/95 backdrop-blur px-4 py-3 flex-shrink-0">
+          <div className="max-w-3xl w-full mx-auto">
+            <form
+              onSubmit={handleFormSubmit}
+              className="relative flex items-center bg-[#1c1c1f] border border-[#2e2e32] focus-within:border-[#3f3f46] rounded-2xl p-2 shadow-lg transition-colors"
+            >
+              <button
+                type="button"
+                onClick={onOpenFolderModal}
+                className="p-2 text-[#a1a1aa] hover:text-[#F9F9FA] rounded-xl hover:bg-[#27272a] transition-colors flex-shrink-0 cursor-pointer mr-1"
+                title="Add context / choose folder"
+              >
+                <i className="fa-solid fa-plus text-xs"></i>
+              </button>
+
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={promptText}
+                disabled={agentState?.isRunning}
+                onChange={handleTextareaInput}
+                onKeyDown={handleKeyDown}
+                placeholder={agentState?.isRunning ? "Agent topshiriqni bajarmoqda..." : t("workspace.placeholder")}
+                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#71717a] px-2 py-1.5 focus:outline-none resize-none max-h-36 disabled:opacity-50"
+              />
+
+              <div className="relative flex-shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#222226] hover:bg-[#27272a] border border-[#2e2e32] text-[#e4e4e7] text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <span className="truncate max-w-[130px]">{currentModelLabel}</span>
+                  <i className="fa-solid fa-chevron-down text-[8px] text-[#a1a1aa]"></i>
+                </button>
+
+                {isModelMenuOpen && (
+                  <div className="absolute right-0 bottom-full mb-2 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-xl shadow-2xl py-1 z-50 text-xs">
+                    {MODEL_OPTIONS.map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(m.value);
+                          setIsModelMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-[#27272a] transition-colors ${
+                          selectedModel === m.value ? "text-[#f4f4f5] font-medium bg-[#27272a]" : "text-[#a1a1aa]"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={!promptText.trim() || agentState?.isRunning}
+                className="ml-1.5 p-2 rounded-xl bg-[#27272a] hover:bg-[#3f3f46] text-[#F9F9FA] disabled:opacity-40 disabled:hover:bg-[#27272a] transition-colors cursor-pointer flex-shrink-0"
+              >
+                <i className="fa-solid fa-arrow-up text-xs"></i>
+              </button>
+            </form>
+
+            <div className="text-[10px] text-center text-[#52525b] mt-2">
+              {t("workspace.disclaimer")}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar bg-[#131314]">
       <div className="w-full max-w-3xl flex flex-col justify-center space-y-3">
-        {messages.length > 0 && (
-          <div className="w-full max-h-[45vh] overflow-y-auto space-y-3 mb-2 custom-scrollbar pr-2">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-[#1e1e22] text-[#F9F9FA] ml-auto max-w-[85%] border border-[#2e2e32]"
-                    : "bg-[#1c1c1f] text-[#cbd5e1] mr-auto max-w-[90%] border border-[#26262a]"
-                }`}
-              >
-                <div className="font-semibold text-[10px] text-[#94a3b8] mb-1">
-                  {msg.role === "user" ? "You" : "Emris AI"}
-                </div>
-                <div className="whitespace-pre-wrap">{msg.content}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {agentState && (
-          <AgentActivityCard
-            isRunning={agentState.isRunning}
-            currentStage={agentState.currentStage}
-            plan={agentState.plan}
-            actions={agentState.actions}
-            onCancel={onCancelAgent}
-          />
-        )}
-
         <div className="w-full text-left">
           <ProjectDropdown
             projects={projects}
@@ -96,29 +229,29 @@ export default function CenterWorkspace({
 
           <form
             onSubmit={handleFormSubmit}
-            className="relative flex items-center bg-[#1c1c1f] border border-[#2e2e32] focus-within:border-[#2563eb] rounded-2xl p-2 shadow-2xl transition-colors"
+            className="relative flex items-center bg-[#1c1c1f] border border-[#2e2e32] focus-within:border-[#3f3f46] rounded-2xl p-2 shadow-2xl transition-colors"
           >
             <button
               type="button"
               onClick={onOpenFolderModal}
-              className="p-2 text-[#94a3b8] hover:text-[#F9F9FA] rounded-xl hover:bg-[#222226] transition-colors flex-shrink-0 cursor-pointer mr-1.5"
+              className="p-2 text-[#a1a1aa] hover:text-[#F9F9FA] rounded-xl hover:bg-[#27272a] transition-colors flex-shrink-0 cursor-pointer mr-1.5"
               title="Add context / choose folder"
             >
               <i className="fa-solid fa-plus text-xs"></i>
             </button>
 
-            <div className="flex items-center bg-[#1e1e22] rounded-xl p-0.5 border border-[#2e2e32] flex-shrink-0 mr-2 text-xs">
+            <div className="flex items-center bg-[#18181b] rounded-xl p-0.5 border border-[#27272a] flex-shrink-0 mr-2 text-xs">
               <button
                 type="button"
                 onClick={handleChatTabClick}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                   selectedTab === "chat"
-                    ? "bg-[#2563eb] text-[#ffffff] font-medium shadow-sm"
-                    : "text-[#94a3b8] hover:text-[#F9F9FA]"
+                    ? "bg-[#27272a] text-[#ffffff] font-medium shadow-sm"
+                    : "text-[#a1a1aa] hover:text-[#F9F9FA]"
                 }`}
                 title="Opens suniyintellekt.uz in default browser"
               >
-                <i className="fa-regular fa-comment-dots text-[#60a5fa] text-xs"></i>
+                <i className="fa-regular fa-comment-dots text-xs text-[#a1a1aa]"></i>
                 <span>{t("workspace.chat_mode")}</span>
               </button>
 
@@ -127,11 +260,11 @@ export default function CenterWorkspace({
                 onClick={handleWorkTabClick}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                   selectedTab === "work"
-                    ? "bg-[#28282c] text-[#F9F9FA] font-medium shadow-sm border border-[#2e2e32]"
-                    : "text-[#94a3b8] hover:text-[#F9F9FA]"
+                    ? "bg-[#27272a] text-[#F9F9FA] font-medium shadow-sm border border-[#3f3f46]/40"
+                    : "text-[#a1a1aa] hover:text-[#F9F9FA]"
                 }`}
               >
-                <i className="fa-solid fa-briefcase text-[#f59e0b] text-xs"></i>
+                <i className="fa-solid fa-briefcase text-xs text-[#a1a1aa]"></i>
                 <span>{t("workspace.work_mode")}</span>
               </button>
             </div>
@@ -142,21 +275,21 @@ export default function CenterWorkspace({
               disabled={agentState?.isRunning}
               onChange={(e) => setPromptText(e.target.value)}
               placeholder={agentState?.isRunning ? "Agent topshiriqni bajarmoqda..." : t("workspace.placeholder")}
-              className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#64748b] px-2 py-2 focus:outline-none disabled:opacity-50"
+              className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#71717a] px-2 py-2 focus:outline-none disabled:opacity-50"
             />
 
             <div className="relative flex-shrink-0 ml-2">
               <button
                 type="button"
                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#F9F9FA] text-xs font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#222226] hover:bg-[#27272a] border border-[#2e2e32] text-[#e4e4e7] text-xs font-medium transition-colors cursor-pointer"
               >
                 <span className="truncate max-w-[140px]">{currentModelLabel}</span>
-                <i className="fa-solid fa-chevron-down text-[8px] text-[#94a3b8]"></i>
+                <i className="fa-solid fa-chevron-down text-[8px] text-[#a1a1aa]"></i>
               </button>
 
               {isModelMenuOpen && (
-                <div className="absolute right-0 bottom-full mb-2 w-52 bg-[#1c1c1f] border border-[#2e2e32] rounded-xl shadow-2xl py-1 z-50 text-xs">
+                <div className="absolute right-0 bottom-full mb-2 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-xl shadow-2xl py-1 z-50 text-xs">
                   {MODEL_OPTIONS.map((m) => (
                     <button
                       key={m.value}
@@ -165,8 +298,8 @@ export default function CenterWorkspace({
                         setSelectedModel(m.value);
                         setIsModelMenuOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-2 hover:bg-[#222226] transition-colors ${
-                        selectedModel === m.value ? "text-[#60a5fa] font-medium bg-[#28282c]" : "text-[#D1D1D6]"
+                      className={`w-full text-left px-3 py-2 hover:bg-[#27272a] transition-colors ${
+                        selectedModel === m.value ? "text-[#f4f4f5] font-medium bg-[#27272a]" : "text-[#a1a1aa]"
                       }`}
                     >
                       {m.label}
@@ -175,15 +308,23 @@ export default function CenterWorkspace({
                 </div>
               )}
             </div>
+
+            <button
+              type="submit"
+              disabled={!promptText.trim() || agentState?.isRunning}
+              className="ml-1.5 p-2 rounded-xl bg-[#27272a] hover:bg-[#3f3f46] text-[#F9F9FA] disabled:opacity-40 disabled:hover:bg-[#27272a] transition-colors cursor-pointer flex-shrink-0"
+            >
+              <i className="fa-solid fa-arrow-up text-xs"></i>
+            </button>
           </form>
 
-          <div className="text-[10px] text-center text-[#64748b] mt-3 leading-relaxed">
+          <div className="text-[10px] text-center text-[#52525b] mt-3 leading-relaxed">
             {t("workspace.legal_prefix")}{" "}
             <a
               href="https://www.suniyintellekt.uz/terms"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#94a3b8] hover:text-[#60a5fa] hover:underline"
+              className="text-[#a1a1aa] hover:text-[#e4e4e7] hover:underline"
             >
               {t("workspace.terms")}
             </a>{" "}
@@ -192,7 +333,7 @@ export default function CenterWorkspace({
               href="https://www.suniyintellekt.uz/privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#94a3b8] hover:text-[#60a5fa] hover:underline"
+              className="text-[#a1a1aa] hover:text-[#e4e4e7] hover:underline"
             >
               {t("workspace.privacy")}
             </a>{" "}
@@ -201,7 +342,7 @@ export default function CenterWorkspace({
               href="https://rahmatilla.uz/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#60a5fa] hover:underline"
+              className="text-[#a1a1aa] hover:underline"
             >
               Rahmatilla.uz
             </a>{" "}
@@ -210,7 +351,7 @@ export default function CenterWorkspace({
               href="https://t.me/rahmatilla_uz"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#60a5fa] hover:underline"
+              className="text-[#a1a1aa] hover:underline"
             >
               @rahmatilla_uz
             </a>{" "}
