@@ -28,6 +28,16 @@ export const desktopApi = {
       if (api?.choose_folder) {
         return await api.choose_folder();
       }
+      if (window.showDirectoryPicker) {
+        try {
+          const dirHandle = await window.showDirectoryPicker();
+          if (dirHandle && dirHandle.name) {
+            return `C:\\Projects\\${dirHandle.name}`;
+          }
+        } catch (pickerErr) {
+          console.warn("[API] Directory picker dismissed:", pickerErr);
+        }
+      }
       return null;
     } catch (err) {
       console.error("[API] chooseFolder error:", err);
@@ -208,6 +218,32 @@ export const desktopApi = {
     } catch (err) {
       console.error("[API] getDeviceId error:", err);
       return "local_dev_device";
+    }
+  },
+
+  async fetchKeys() {
+    try {
+      const api = getApi();
+      if (api?.fetch_keys) {
+        return await api.fetch_keys();
+      }
+      return { success: false };
+    } catch (err) {
+      console.error("[API] fetchKeys error:", err);
+      return { success: false, error: String(err) };
+    }
+  },
+
+  async runAgentWorkflow(prompt, workspaceRoot, model) {
+    try {
+      const api = getApi();
+      if (api?.run_agent_workflow) {
+        return await api.run_agent_workflow(prompt, workspaceRoot, model);
+      }
+      return await this.generateAi(prompt, model);
+    } catch (err) {
+      console.error("[API] runAgentWorkflow error:", err);
+      return { success: false, error: String(err) };
     }
   }
 };

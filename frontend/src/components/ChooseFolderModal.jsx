@@ -7,6 +7,7 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
   const [projectName, setProjectName] = useState("");
   const [folderPath, setFolderPath] = useState("");
   const [hasUserTypedName, setHasUserTypedName] = useState(false);
+  const [isBrowsing, setIsBrowsing] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -27,6 +28,7 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
 
   const handleBrowse = async () => {
     try {
+      setIsBrowsing(true);
       const selected = await desktopApi.chooseFolder();
       if (selected) {
         setFolderPath(selected);
@@ -39,6 +41,8 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
       }
     } catch (err) {
       console.error("[Modal] Browse folder error:", err);
+    } finally {
+      setIsBrowsing(false);
     }
   };
 
@@ -116,9 +120,11 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder }) {
               <button
                 type="button"
                 onClick={handleBrowse}
-                className="px-3 py-2 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#F9F9FA] text-xs font-medium transition-colors cursor-pointer flex-shrink-0"
+                disabled={isBrowsing}
+                className="px-3 py-2 rounded-xl bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#F9F9FA] text-xs font-medium transition-colors cursor-pointer flex-shrink-0 disabled:opacity-50 flex items-center gap-1.5"
               >
-                {t("folder_modal.browse")}
+                {isBrowsing && <i className="fa-solid fa-spinner fa-spin text-xs text-[#2563eb]"></i>}
+                <span>{isBrowsing ? "..." : t("folder_modal.browse")}</span>
               </button>
             </div>
           </div>

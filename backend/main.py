@@ -1,10 +1,15 @@
 import io
 import os
 import socket
+import subprocess
 import sys
 import webbrowser
 from pathlib import Path
 import webview
+
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 try:
     from backend.database import db
@@ -13,8 +18,10 @@ try:
         get_device_quota,
         check_gateway_health,
         request_generate,
-        get_persistent_device_id
+        get_persistent_device_id,
+        fetch_remote_keys
     )
+    from backend.agent import run_hierarchical_cycle
 except ImportError:
     from database import db
     from terminal import execute_shell_command
@@ -22,8 +29,10 @@ except ImportError:
         get_device_quota,
         check_gateway_health,
         request_generate,
-        get_persistent_device_id
+        get_persistent_device_id,
+        fetch_remote_keys
     )
+    from agent import run_hierarchical_cycle
 
 if sys.stdout is None:
     sys.stdout = io.StringIO()
@@ -51,20 +60,49 @@ load_env_file()
 
 def choose_folder_dialog():
     try:
+        if sys.platform == "win32":
+            cmd = [
+                "powershell",
+                "-NoProfile",
+                "-Sta",
+                "-NonInteractive",
+                "-ExecutionPolicy", "Bypass",
+                "-Command",
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                "$d.Description = 'Select Project Folder'; "
+                "$d.ShowNewFolderButton = $true; "
+                "$f = New-Object System.Windows.Forms.Form; "
+                "$f.TopMost = $true; "
+                "$f.StartPosition = 'CenterScreen'; "
+                "if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }; "
+                "$f.Dispose(); $d.Dispose();"
+            ]
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            res = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags, timeout=300)
+            selected = res.stdout.strip()
+            if selected and os.path.exists(selected):
+                resolved = str(Path(selected).resolve())
+                print(f"[Desktop] Selected directory via native dialog: {resolved}")
+                return resolved
+    except Exception as exc:
+        print(f"[Desktop] Native folder dialog error: {exc}")
+
+    try:
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
         root.attributes("-topmost", True)
-        selected = filedialog.askdirectory(title="Select Project Folder")
+        selected = filedialog.askdirectory(parent=root, title="Select Project Folder")
         root.destroy()
         if selected:
             resolved = str(Path(selected).resolve())
-            print(f"[Desktop] Selected directory: {resolved}")
+            print(f"[Desktop] Selected directory via fallback: {resolved}")
             return resolved
         return None
     except Exception as exc:
-        print(f"[Desktop] Folder dialog error: {exc}")
+        print(f"[Desktop] Folder dialog fallback error: {exc}")
         return None
 
 
@@ -189,6 +227,20 @@ class DesktopBridge:
         except Exception as exc:
             print(f"[Desktop] get_device_id error: {exc}")
             return "unknown"
+
+    def fetch_keys(self):
+        try:
+            return fetch_remote_keys()
+        except Exception as exc:
+            print(f"[Desktop] fetch_keys error: {exc}")
+            return {"success": False, "error": str(exc)}
+
+    def run_agent_workflow(self, prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite"):
+        try:
+            return run_hierarchical_cycle(prompt, workspace_root, model)
+        except Exception as exc:
+            print(f"[Desktop] run_agent_workflow error: {exc}")
+            return {"success": False, "error": str(exc)}
 
 
 def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:

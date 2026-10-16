@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ProjectDropdown from "./ProjectDropdown";
+import AgentActivityCard from "./AgentActivityCard";
 import { MODEL_OPTIONS } from "../constants/uiData";
 import { useTranslation } from "../i18n/LanguageContext";
 import { desktopApi } from "../services/api";
@@ -9,6 +10,8 @@ export default function CenterWorkspace({
   currentProject,
   activeConversation,
   messages = [],
+  agentState = null,
+  onCancelAgent,
   onSelectProject,
   onOpenFolderModal,
   onSubmitPrompt
@@ -38,7 +41,7 @@ export default function CenterWorkspace({
   const handleFormSubmit = (e) => {
     try {
       e.preventDefault();
-      if (!promptText.trim()) return;
+      if (!promptText.trim() || agentState?.isRunning) return;
       if (onSubmitPrompt) {
         onSubmitPrompt(promptText.trim(), selectedModel);
       }
@@ -52,9 +55,9 @@ export default function CenterWorkspace({
 
   return (
     <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-8 py-8 overflow-y-auto select-none custom-scrollbar bg-[#131314]">
-      <div className="w-full max-w-3xl flex flex-col justify-center">
+      <div className="w-full max-w-3xl flex flex-col justify-center space-y-3">
         {messages.length > 0 && (
-          <div className="w-full max-h-[50vh] overflow-y-auto space-y-3 mb-4 custom-scrollbar pr-2">
+          <div className="w-full max-h-[45vh] overflow-y-auto space-y-3 mb-2 custom-scrollbar pr-2">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -71,6 +74,16 @@ export default function CenterWorkspace({
               </div>
             ))}
           </div>
+        )}
+
+        {agentState && (
+          <AgentActivityCard
+            isRunning={agentState.isRunning}
+            currentStage={agentState.currentStage}
+            plan={agentState.plan}
+            actions={agentState.actions}
+            onCancel={onCancelAgent}
+          />
         )}
 
         <div className="w-full text-left">
@@ -126,9 +139,10 @@ export default function CenterWorkspace({
             <input
               type="text"
               value={promptText}
+              disabled={agentState?.isRunning}
               onChange={(e) => setPromptText(e.target.value)}
-              placeholder={t("workspace.placeholder")}
-              className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#64748b] px-2 py-2 focus:outline-none"
+              placeholder={agentState?.isRunning ? "Agent topshiriqni bajarmoqda..." : t("workspace.placeholder")}
+              className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#64748b] px-2 py-2 focus:outline-none disabled:opacity-50"
             />
 
             <div className="relative flex-shrink-0 ml-2">

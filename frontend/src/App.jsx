@@ -12,6 +12,7 @@ export default function App() {
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [agentState, setAgentState] = useState(null);
 
   const loadData = async () => {
     try {
@@ -108,6 +109,14 @@ export default function App() {
     }
   };
 
+  const handleCancelAgent = () => {
+    try {
+      setAgentState((prev) => (prev ? { ...prev, isRunning: false, currentStage: "To'xtatildi" } : null));
+    } catch (error) {
+      console.error("[App] Cancel agent error:", error);
+    }
+  };
+
   const handleSubmitPrompt = async (promptText, model) => {
     try {
       let conv = activeConversation;
@@ -127,29 +136,49 @@ export default function App() {
         const currentMessages = await desktopApi.getMessages(conv.id);
         setMessages(currentMessages || []);
 
-        const history = (currentMessages || []).map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        }));
+        const targetProj = projects.find((p) => p.name === currentProject);
+        const workspaceRoot = targetProj ? targetProj.path : null;
 
-        const result = await desktopApi.generateAi(promptText, model, history);
+        setAgentState({
+          isRunning: true,
+          currentStage: "Chief Agent: Reja va tahlil shakllantirilmoqda...",
+          plan: {
+            title: "Topshiriq tahlil qilinmoqda",
+            steps: [
+              { id: 1, agent: "researcher", description: "Loyiha tuzilmasini o'rganish", status: "running" },
+              { id: 2, agent: "lead_coder", description: "Yechim va kod generatsiyasi", status: "pending" }
+            ]
+          },
+          actions: []
+        });
+
+        const agentResult = await desktopApi.runAgentWorkflow(promptText, workspaceRoot, model);
+
         let replyText = "";
-
-        if (result.success && result.data) {
-          replyText =
-            result.data.response ||
-            result.data.text ||
-            result.data.content ||
-            result.data.message ||
-            (typeof result.data === "string" ? result.data : JSON.stringify(result.data));
-        } else if (result.code === 429) {
-          replyText = "Bugungi bepul so'rovlar limiti tugadi (50/50). Limit ertaga yangilanadi.";
-        } else if (result.code === 403) {
-          replyText = "Xavfsizlik tekshiruvi xatosi (HMAC X-Signature). Iltimos, EMRIS_DESKTOP_SECRET kalitini tekshiring.";
-        } else if (result.code === 401) {
-          replyText = "Vaqt tamg'asi xatosi (Replay attack). Kompyuteringiz soati to'g'ri sozlanganini tekshiring.";
+        if (agentResult.success) {
+          setAgentState({
+            isRunning: false,
+            currentStage: "Muvaffaqiyatli yakunlandi",
+            plan: {
+              title: agentResult.chief_thought || "Topshiriq bajarildi",
+              steps: (agentResult.steps || []).map((s) => ({
+                id: s.id,
+                agent: s.agent,
+                description: s.description,
+                status: "done"
+              }))
+            },
+            actions: agentResult.actions || []
+          });
+          replyText = agentResult.response || "Vazifa muvaffaqiyatli bajarildi.";
         } else {
-          replyText = `[Gateway xatoligi]: ${result.error?.message || result.error || "SuniyIntellekt.uz serveriga ulanib bo'lmadi."}`;
+          setAgentState({
+            isRunning: false,
+            currentStage: "Xatolik yuz berdi",
+            plan: null,
+            actions: []
+          });
+          replyText = `[Agent xatoligi]: ${agentResult.error || "Agent topshiriqni bajara olmadi."}`;
         }
 
         await desktopApi.addMessage(conv.id, "assistant", replyText);
@@ -158,6 +187,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("[App] Submit prompt error:", error);
+      setAgentState((prev) => (prev ? { ...prev, isRunning: false, currentStage: "Xatolik" } : null));
     }
   };
 
@@ -188,6 +218,8 @@ export default function App() {
           onSelectProject={handleSelectProject}
           onOpenFolderModal={() => setIsFolderModalOpen(true)}
           onSubmitPrompt={handleSubmitPrompt}
+          agentState={agentState}
+          onCancelAgent={handleCancelAgent}
         />
       </main>
       <ChooseFolderModal
