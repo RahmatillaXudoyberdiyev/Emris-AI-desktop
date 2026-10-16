@@ -29,6 +29,11 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+    const handleReady = () => {
+      loadData();
+    };
+    window.addEventListener("pywebviewready", handleReady);
+    return () => window.removeEventListener("pywebviewready", handleReady);
   }, []);
 
   const handleSelectProject = (projectName) => {
@@ -69,6 +74,7 @@ export default function App() {
     try {
       const created = await desktopApi.createProject(newProjectName, folderPath);
       if (created) {
+        setProjects((prev) => [created, ...(prev || []).filter((p) => p.id !== created.id)]);
         setCurrentProject(created.name);
         await loadData();
       }
@@ -79,6 +85,7 @@ export default function App() {
 
   const handleDeleteProject = async (projectId) => {
     try {
+      setProjects((prev) => (prev || []).filter((p) => p.id !== projectId));
       const success = await desktopApi.deleteProject(projectId);
       if (success) {
         if (currentProject !== "No Project") {
@@ -209,6 +216,9 @@ export default function App() {
         <Header
           currentProject={currentProject}
           currentSessionTitle={activeConversation?.title}
+          projects={projects}
+          onSelectProject={handleSelectProject}
+          onOpenFolderModal={() => setIsFolderModalOpen(true)}
         />
         <CenterWorkspace
           projects={projects}

@@ -61,8 +61,22 @@ export default function ProjectDropdown({ projects = [], selectedProject, onSele
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 bottom-full mb-2 w-52 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-1.5 z-50 text-xs text-[#F9F9FA] space-y-0.5">
+        <div className="absolute left-0 bottom-full mb-2 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-1.5 z-50 text-xs text-[#F9F9FA] space-y-0.5">
           <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar py-0.5">
+            <button
+              type="button"
+              onClick={() => handleSelect("No Project")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                !isChosen ? "bg-[#28282c] text-[#F9F9FA] font-medium" : "hover:bg-[#222226] text-[#D1D1D6] hover:text-[#F9F9FA]"
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <i className="fa-regular fa-circle-xmark text-[#94a3b8] text-xs"></i>
+                <span>{t("workspace.no_project") || "No Project"}</span>
+              </div>
+              {!isChosen && <i className="fa-solid fa-check text-[#60a5fa] text-[10px]"></i>}
+            </button>
+
             {projects.map((project) => {
               const isSelected = selectedProject === project.name;
               return (

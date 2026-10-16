@@ -1,16 +1,36 @@
-const getApi = () => {
+const waitForApi = () => {
   try {
-    return window.pywebview?.api || null;
+    if (window.pywebview?.api) {
+      return Promise.resolve(window.pywebview.api);
+    }
+    return new Promise((resolve) => {
+      let resolved = false;
+      const onReady = () => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener("pywebviewready", onReady);
+          resolve(window.pywebview?.api || null);
+        }
+      };
+      window.addEventListener("pywebviewready", onReady);
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener("pywebviewready", onReady);
+          resolve(window.pywebview?.api || null);
+        }
+      }, 500);
+    });
   } catch (err) {
     console.error("[API] Error resolving pywebview api:", err);
-    return null;
+    return Promise.resolve(null);
   }
 };
 
 export const desktopApi = {
   async openExternal(url) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.open_external) {
         return await api.open_external(url);
       }
@@ -24,7 +44,7 @@ export const desktopApi = {
 
   async chooseFolder() {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.choose_folder) {
         return await api.choose_folder();
       }
@@ -47,11 +67,13 @@ export const desktopApi = {
 
   async getProjects() {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.get_projects) {
-        return await api.get_projects();
+        const result = await api.get_projects();
+        if (Array.isArray(result)) return result;
       }
-      return [];
+      const stored = localStorage.getItem("emris_projects");
+      return stored ? JSON.parse(stored) : [];
     } catch (err) {
       console.error("[API] getProjects error:", err);
       return [];
@@ -60,11 +82,16 @@ export const desktopApi = {
 
   async createProject(name, path) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.create_project) {
-        return await api.create_project(name, path);
+        const res = await api.create_project(name, path);
+        if (res) return res;
       }
-      return { id: String(Date.now()), name, path, created_at: new Date().toISOString() };
+      const fallback = { id: String(Date.now()), name, path, created_at: new Date().toISOString() };
+      const stored = localStorage.getItem("emris_projects");
+      const list = stored ? JSON.parse(stored) : [];
+      localStorage.setItem("emris_projects", JSON.stringify([fallback, ...list]));
+      return fallback;
     } catch (err) {
       console.error("[API] createProject error:", err);
       return null;
@@ -73,9 +100,14 @@ export const desktopApi = {
 
   async deleteProject(id) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.delete_project) {
-        return await api.delete_project(id);
+        await api.delete_project(id);
+      }
+      const stored = localStorage.getItem("emris_projects");
+      if (stored) {
+        const list = JSON.parse(stored).filter((p) => p.id !== id);
+        localStorage.setItem("emris_projects", JSON.stringify(list));
       }
       return true;
     } catch (err) {
@@ -86,7 +118,7 @@ export const desktopApi = {
 
   async getConversations(projectId = null) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.get_conversations) {
         return await api.get_conversations(projectId);
       }
@@ -99,7 +131,7 @@ export const desktopApi = {
 
   async createConversation(title, projectId = null, model = "Gemini 3.5 Flash Lite") {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.create_conversation) {
         return await api.create_conversation(title, projectId, model);
       }
@@ -119,7 +151,7 @@ export const desktopApi = {
 
   async deleteConversation(id) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.delete_conversation) {
         return await api.delete_conversation(id);
       }
@@ -132,7 +164,7 @@ export const desktopApi = {
 
   async getMessages(conversationId) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.get_messages) {
         return await api.get_messages(conversationId);
       }
@@ -145,7 +177,7 @@ export const desktopApi = {
 
   async addMessage(conversationId, role, content) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.add_message) {
         return await api.add_message(conversationId, role, content);
       }
@@ -158,7 +190,7 @@ export const desktopApi = {
 
   async runCommand(command, cwd = null) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.run_command) {
         return await api.run_command(command, cwd);
       }
@@ -171,33 +203,33 @@ export const desktopApi = {
 
   async getQuota() {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.get_quota) {
         return await api.get_quota();
       }
       return { used: 0, remaining: 50, limit: 50 };
     } catch (err) {
       console.error("[API] getQuota error:", err);
-      return { error: String(err) };
+      return { used: 0, remaining: 50, limit: 50 };
     }
   },
 
   async checkGatewayHealth() {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.check_gateway_health) {
         return await api.check_gateway_health();
       }
-      return { online: false };
+      return false;
     } catch (err) {
       console.error("[API] checkGatewayHealth error:", err);
-      return { online: false, error: String(err) };
+      return false;
     }
   },
 
-  async generateAi(prompt, model, history = []) {
+  async generateAi(prompt, model = "gemini-3.5-flash-lite", history = []) {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.generate_ai) {
         return await api.generate_ai(prompt, model, history);
       }
@@ -208,43 +240,29 @@ export const desktopApi = {
     }
   },
 
-  async getDeviceId() {
+  async runAgentWorkflow(prompt, workspaceRoot = null, model = "nemotron-3-ultra-550b") {
     try {
-      const api = getApi();
-      if (api?.get_device_id) {
-        return await api.get_device_id();
+      const api = await waitForApi();
+      if (api?.run_agent_workflow) {
+        return await api.run_agent_workflow(prompt, workspaceRoot, model);
       }
-      return "local_dev_device";
+      return { success: false, error: "Desktop bridge unavailable" };
     } catch (err) {
-      console.error("[API] getDeviceId error:", err);
-      return "local_dev_device";
+      console.error("[API] runAgentWorkflow error:", err);
+      return { success: false, error: String(err) };
     }
   },
 
   async fetchKeys() {
     try {
-      const api = getApi();
+      const api = await waitForApi();
       if (api?.fetch_keys) {
         return await api.fetch_keys();
       }
-      return { success: false };
+      return { success: false, error: "Desktop bridge unavailable" };
     } catch (err) {
       console.error("[API] fetchKeys error:", err);
       return { success: false, error: String(err) };
     }
-  },
-
-  async runAgentWorkflow(prompt, workspaceRoot, model) {
-    try {
-      const api = getApi();
-      if (api?.run_agent_workflow) {
-        return await api.run_agent_workflow(prompt, workspaceRoot, model);
-      }
-      return await this.generateAi(prompt, model);
-    } catch (err) {
-      console.error("[API] runAgentWorkflow error:", err);
-      return { success: false, error: String(err) };
-    }
   }
 };
-

@@ -2,11 +2,19 @@ import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "../i18n/LanguageContext";
 import { desktopApi } from "../services/api";
 
-export default function Header({ currentProject, currentSessionTitle }) {
+export default function Header({
+  currentProject,
+  currentSessionTitle,
+  projects = [],
+  onSelectProject,
+  onOpenFolderModal
+}) {
   const { language, setLanguage, t } = useTranslation();
   const [isLangOpen, setIsLangOpen] = useState(false);
+  const [isProjectOpen, setIsProjectOpen] = useState(false);
   const [quota, setQuota] = useState(null);
   const langRef = useRef(null);
+  const projectRef = useRef(null);
 
   useEffect(() => {
     desktopApi.getQuota().then((data) => {
@@ -21,6 +29,9 @@ export default function Header({ currentProject, currentSessionTitle }) {
       try {
         if (langRef.current && !langRef.current.contains(e.target)) {
           setIsLangOpen(false);
+        }
+        if (projectRef.current && !projectRef.current.contains(e.target)) {
+          setIsProjectOpen(false);
         }
       } catch (err) {
         console.error("[Header] Click outside error:", err);
@@ -107,13 +118,91 @@ export default function Header({ currentProject, currentSessionTitle }) {
   return (
     <header className="h-14 border-b border-[#26262a] bg-[#151515] px-5 flex items-center justify-between flex-shrink-0 z-20 select-none">
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          className="text-xs text-[#F9F9FA] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition-colors cursor-pointer"
-        >
-          <i className="fa-solid fa-folder text-[#f59e0b]"></i>
-          <span className="font-medium">{currentProject || "No Project"}</span>
-        </button>
+        <div ref={projectRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setIsProjectOpen(!isProjectOpen)}
+            className="text-xs text-[#F9F9FA] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition-colors cursor-pointer"
+          >
+            <i className="fa-solid fa-folder text-[#f59e0b]"></i>
+            <span className="font-medium">{currentProject || "No Project"}</span>
+            <i className="fa-solid fa-chevron-down text-[8px] text-[#64748b] ml-0.5"></i>
+          </button>
+
+          {isProjectOpen && (
+            <div className="absolute left-0 top-full mt-1.5 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-1.5 z-50 text-xs text-[#F9F9FA] space-y-0.5">
+              <div className="max-h-52 overflow-y-auto space-y-0.5 custom-scrollbar py-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      if (onSelectProject) onSelectProject("No Project");
+                      setIsProjectOpen(false);
+                    } catch (err) {
+                      console.error("[Header] Select no project error:", err);
+                    }
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                    currentProject === "No Project" ? "bg-[#28282c] text-[#F9F9FA] font-medium" : "hover:bg-[#222226] text-[#D1D1D6]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <i className="fa-regular fa-circle-xmark text-[#94a3b8] text-xs"></i>
+                    <span>No Project</span>
+                  </div>
+                  {currentProject === "No Project" && <i className="fa-solid fa-check text-[#60a5fa] text-[10px]"></i>}
+                </button>
+
+                {projects.map((p) => {
+                  const isSelected = currentProject === p.name;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        try {
+                          if (onSelectProject) onSelectProject(p.name);
+                          setIsProjectOpen(false);
+                        } catch (err) {
+                          console.error("[Header] Select project error:", err);
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                        isSelected ? "bg-[#28282c] text-[#F9F9FA] font-medium" : "hover:bg-[#222226] text-[#D1D1D6]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <i className="fa-solid fa-folder text-[#f59e0b] text-xs flex-shrink-0"></i>
+                        <span className="truncate">{p.name}</span>
+                      </div>
+                      {isSelected && <i className="fa-solid fa-check text-[#60a5fa] text-[10px]"></i>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {onOpenFolderModal && (
+                <div className="border-t border-[#26262a] pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        setIsProjectOpen(false);
+                        onOpenFolderModal();
+                      } catch (err) {
+                        console.error("[Header] Open modal error:", err);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[#F9F9FA] hover:bg-[#28282c] transition-colors text-left cursor-pointer font-medium"
+                  >
+                    <i className="fa-solid fa-plus text-[#60a5fa] text-xs"></i>
+                    <span>{t("workspace.new_project")}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <span className="text-[#64748b]">/</span>
 
