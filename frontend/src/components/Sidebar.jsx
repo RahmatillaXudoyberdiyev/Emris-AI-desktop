@@ -117,13 +117,13 @@ export default function Sidebar({
                 projects.map((project) => {
                   const isCurrentProject = activeProjectName === project.name;
                   const isCollapsed = Boolean(collapsedProjects[project.name]);
-                  const projectChats = conversations.filter((c) => c.project_id === project.id);
+                  const projectChats = conversations.filter((c) => String(c.project_id) === String(project.id));
 
                   return (
                     <div key={project.id} className="space-y-0.5">
                       <div
                         onClick={() => {
-                          toggleProjectCollapse(project.name);
+                          setCollapsedProjects((prev) => ({ ...prev, [project.name]: false }));
                           if (onSelectProject) onSelectProject(project.name);
                         }}
                         className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
@@ -146,6 +146,7 @@ export default function Sidebar({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setCollapsedProjects((prev) => ({ ...prev, [project.name]: false }));
                                 onNewProjectConversation(project);
                               }}
                               className="opacity-0 group-hover:opacity-100 hover:text-[#60a5fa] p-0.5 transition-opacity cursor-pointer"
@@ -167,7 +168,16 @@ export default function Sidebar({
                               <i className="fa-regular fa-trash-can text-[10px]"></i>
                             </button>
                           )}
-                          <i className={`fa-solid fa-chevron-down text-[8px] text-[#64748b] transition-transform ${isCollapsed ? "-rotate-90" : ""}`}></i>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProjectCollapse(project.name);
+                            }}
+                            className="p-0.5 hover:text-[#F9F9FA] transition-colors"
+                          >
+                            <i className={`fa-solid fa-chevron-down text-[8px] text-[#64748b] transition-transform ${isCollapsed ? "-rotate-90" : ""}`}></i>
+                          </button>
                         </div>
                       </div>
 
@@ -213,7 +223,10 @@ export default function Sidebar({
                           {onNewProjectConversation && (
                             <button
                               type="button"
-                              onClick={() => onNewProjectConversation(project)}
+                              onClick={() => {
+                                setCollapsedProjects((prev) => ({ ...prev, [project.name]: false }));
+                                onNewProjectConversation(project);
+                              }}
                               className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] text-[#60a5fa] hover:text-[#93c5fd] hover:bg-[#222226] transition-colors cursor-pointer font-medium"
                             >
                               <i className="fa-solid fa-plus text-[8px]"></i>

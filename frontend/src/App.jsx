@@ -20,8 +20,12 @@ export default function App() {
         desktopApi.getProjects(),
         desktopApi.getConversations()
       ]);
-      setProjects(fetchedProjects || []);
-      setConversations(fetchedConversations || []);
+      if (Array.isArray(fetchedProjects)) {
+        setProjects(fetchedProjects);
+      }
+      if (Array.isArray(fetchedConversations)) {
+        setConversations(fetchedConversations);
+      }
     } catch (err) {
       console.error("[App] Error loading initial data:", err);
     }
@@ -36,9 +40,24 @@ export default function App() {
     return () => window.removeEventListener("pywebviewready", handleReady);
   }, []);
 
-  const handleSelectProject = (projectName) => {
+  const handleSelectProject = async (projectName) => {
     try {
       setCurrentProject(projectName);
+      if (projectName === "No Project") {
+        setActiveConversation(null);
+        setMessages([]);
+        return;
+      }
+
+      const targetProj = projects.find((p) => p.name === projectName);
+      if (targetProj) {
+        const projChats = conversations.filter((c) => String(c.project_id) === String(targetProj.id));
+        if (projChats.length > 0) {
+          handleSelectConversation(projChats[0]);
+        } else {
+          await handleNewProjectConversation(targetProj);
+        }
+      }
     } catch (error) {
       console.error("[App] Select project error:", error);
     }
@@ -48,11 +67,12 @@ export default function App() {
     try {
       if (!project) return;
       setCurrentProject(project.name);
-      const projChats = conversations.filter((c) => c.project_id === project.id);
+      const projChats = conversations.filter((c) => String(c.project_id) === String(project.id));
       const newIndex = projChats.length + 1;
       const title = `${project.name} - Chat ${newIndex}`;
       const newConv = await desktopApi.createConversation(title, project.id, "gemini-3.5-flash-lite");
       if (newConv) {
+        setConversations((prev) => [newConv, ...(prev || []).filter((c) => c.id !== newConv.id)]);
         setActiveConversation(newConv);
         setMessages([]);
         await loadData();
@@ -79,9 +99,10 @@ export default function App() {
 
   const handleSelectConversation = async (conv) => {
     try {
+      if (!conv) return;
       setActiveConversation(conv);
       if (conv.project_id) {
-        const found = projects.find((p) => p.id === conv.project_id);
+        const found = projects.find((p) => String(p.id) === String(conv.project_id));
         setCurrentProject(found ? found.name : "No Project");
       } else {
         setCurrentProject("No Project");
@@ -106,6 +127,7 @@ export default function App() {
           "gemini-3.5-flash-lite"
         );
         if (initialChat) {
+          setConversations((prev) => [initialChat, ...(prev || []).filter((c) => c.id !== initialChat.id)]);
           setActiveConversation(initialChat);
           setMessages([]);
         }
@@ -118,11 +140,11 @@ export default function App() {
 
   const handleDeleteProject = async (projectId) => {
     try {
-      setProjects((prev) => (prev || []).filter((p) => p.id !== projectId));
+      setProjects((prev) => (prev || []).filter((p) => String(p.id) !== String(projectId)));
       const success = await desktopApi.deleteProject(projectId);
       if (success) {
         if (currentProject !== "No Project") {
-          const deleted = projects.find((p) => p.id === projectId);
+          const deleted = projects.find((p) => String(p.id) === String(projectId));
           if (deleted && deleted.name === currentProject) {
             setCurrentProject("No Project");
           }
@@ -136,9 +158,10 @@ export default function App() {
 
   const handleDeleteConversation = async (convId) => {
     try {
+      setConversations((prev) => (prev || []).filter((c) => String(c.id) !== String(convId)));
       const success = await desktopApi.deleteConversation(convId);
       if (success) {
-        if (activeConversation && activeConversation.id === convId) {
+        if (activeConversation && String(activeConversation.id) === String(convId)) {
           setActiveConversation(null);
           setMessages([]);
         }
@@ -166,65 +189,82 @@ export default function App() {
         const title = promptText.length > 28 ? promptText.slice(0, 28) + "..." : promptText;
         conv = await desktopApi.createConversation(title, projId, model);
         if (conv) {
+          setConversations((prev) => [conv, ...(prev || []).filter((c) => c.id !== conv.id)]);
           setActiveConversation(conv);
-          await loadData();
         }
       }
 
+      const activeConvId = conv ? conv.id : String(Date.now());
+
+      const userMsg = {
+        id: "user_" + Date.now(),
+        conversation_id: activeConvId,
+        role: "user",
+        content: promptText
+      };
+      setMessages((prev) => [...(prev || []), userMsg]);
+
       if (conv) {
         await desktopApi.addMessage(conv.id, "user", promptText);
-        const currentMessages = await desktopApi.getMessages(conv.id);
-        setMessages(currentMessages || []);
+      }
 
-        const targetProj = projects.find((p) => p.name === currentProject);
-        const workspaceRoot = targetProj ? targetProj.path : null;
+      const targetProj = projects.find((p) => p.name === currentProject);
+      const workspaceRoot = targetProj ? targetProj.path : null;
 
+      setAgentState({
+        isRunning: true,
+        currentStage: "Chief Agent: Reja va tahlil shakllantirilmoqda...",
+        plan: {
+          title: "Topshiriq tahlil qilinmoqda",
+          chief_thought: "Loyiha arxitekturasi va konteksti o'rganilmoqda...",
+          steps: [
+            { id: 1, agent: "researcher", description: "Loyiha fayllari va tuzilmasi tekshirilmoqda", status: "running" },
+            { id: 2, agent: "lead_coder", description: "Yechim va arxitektura ishlab chiqilmoqda", status: "pending" }
+          ]
+        },
+        actions: []
+      });
+
+      const agentResult = await desktopApi.runAgentWorkflow(promptText, workspaceRoot, model);
+
+      let replyText = "";
+      if (agentResult && (agentResult.success || agentResult.response)) {
         setAgentState({
-          isRunning: true,
-          currentStage: "Chief Agent: Reja va tahlil shakllantirilmoqda...",
+          isRunning: false,
+          currentStage: "Muvaffaqiyatli yakunlandi",
           plan: {
-            title: "Topshiriq tahlil qilinmoqda",
-            chief_thought: "Loyiha tuzilmasi va foydalanuvchi maqsadi o'rganilmoqda...",
-            steps: [
-              { id: 1, agent: "researcher", description: "Loyiha fayllari va tuzilmasini o'rganish", status: "running" },
-              { id: 2, agent: "lead_coder", description: "Yechim va arxitektura sintezi", status: "pending" }
-            ]
+            chief_thought: agentResult.chief_thought || "Topshiriq tahlili yakunlandi",
+            steps: (agentResult.steps || []).map((s) => ({
+              id: s.id,
+              agent: s.agent,
+              description: s.description,
+              status: "done"
+            }))
           },
+          actions: agentResult.actions || []
+        });
+        replyText = agentResult.response || "Vazifa muvaffaqiyatli bajarildi.";
+      } else {
+        setAgentState({
+          isRunning: false,
+          currentStage: "Xatolik yuz berdi",
+          plan: null,
           actions: []
         });
+        replyText = `[Agent xatoligi]: ${agentResult?.error || "Agent topshiriqni bajara olmadi."}`;
+      }
 
-        const agentResult = await desktopApi.runAgentWorkflow(promptText, workspaceRoot, model);
+      const assistantMsg = {
+        id: "assistant_" + Date.now(),
+        conversation_id: activeConvId,
+        role: "assistant",
+        content: replyText
+      };
+      setMessages((prev) => [...(prev || []), assistantMsg]);
 
-        let replyText = "";
-        if (agentResult.success) {
-          setAgentState({
-            isRunning: false,
-            currentStage: "Muvaffaqiyatli yakunlandi",
-            plan: {
-              chief_thought: agentResult.chief_thought || "Topshiriq tahlili yakunlandi",
-              steps: (agentResult.steps || []).map((s) => ({
-                id: s.id,
-                agent: s.agent,
-                description: s.description,
-                status: "done"
-              }))
-            },
-            actions: agentResult.actions || []
-          });
-          replyText = agentResult.response || "Vazifa muvaffaqiyatli bajarildi.";
-        } else {
-          setAgentState({
-            isRunning: false,
-            currentStage: "Xatolik yuz berdi",
-            plan: null,
-            actions: []
-          });
-          replyText = `[Agent xatoligi]: ${agentResult.error || "Agent topshiriqni bajara olmadi."}`;
-        }
-
+      if (conv) {
         await desktopApi.addMessage(conv.id, "assistant", replyText);
-        const finalMessages = await desktopApi.getMessages(conv.id);
-        setMessages(finalMessages || []);
+        await loadData();
       }
     } catch (error) {
       console.error("[App] Submit prompt error:", error);
