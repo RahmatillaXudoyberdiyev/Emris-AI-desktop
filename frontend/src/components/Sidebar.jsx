@@ -62,13 +62,21 @@ export default function Sidebar({
     >
       <div className="p-3 border-b border-[#26262a] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#2563eb] to-[#3b82f6] flex items-center justify-center font-bold text-xs text-white shadow-sm">
-            E
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-xs tracking-tight">{t("sidebar.brand")}</span>
-            <span className="text-[10px] text-[#64748b] -mt-0.5">{t("sidebar.version")}</span>
-          </div>
+          <img
+            src="/favicon.ico"
+            alt="Emris AI"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = "/favicon-48x48.png";
+            }}
+            className="w-7 h-7 rounded-full object-cover shadow-sm flex-shrink-0"
+          />
+          <span className="font-bold text-sm tracking-tight text-[#F9F9FA]">
+            {t("sidebar.brand")}
+          </span>
+          <span className="px-2 py-0.5 rounded-md border border-[#3b82f6]/40 bg-[#1e293b]/50 text-[#3b82f6] text-[10px] font-mono font-medium">
+            v1.1 Beta
+          </span>
         </div>
       </div>
 
