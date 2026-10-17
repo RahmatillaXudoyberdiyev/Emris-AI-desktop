@@ -7,11 +7,14 @@ from pathlib import Path
 
 def get_db_path() -> Path:
     try:
+        ws_data = Path(__file__).resolve().parent.parent / "data"
+        ws_data.mkdir(parents=True, exist_ok=True)
+        return ws_data / "emris.db"
+    except Exception:
+        pass
+    try:
         app_data = os.getenv("APPDATA")
-        if app_data:
-            base_dir = Path(app_data) / "EmrisAI"
-        else:
-            base_dir = Path.home() / ".emris_ai"
+        base_dir = Path(app_data) / "EmrisAI" if app_data else Path.home() / ".emris_ai"
         base_dir.mkdir(parents=True, exist_ok=True)
         return base_dir / "emris.db"
     except Exception as exc:
