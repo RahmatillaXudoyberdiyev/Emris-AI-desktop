@@ -19,6 +19,26 @@ export default function Sidebar({
   const [isProjectsSectionOpen, setIsProjectsSectionOpen] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [pinnedChats, setPinnedChats] = useState(() => {
+    try {
+      const saved = localStorage.getItem("emris_pinned_chats");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const togglePinChat = (chatId) => {
+    try {
+      setPinnedChats((prev) => {
+        const next = { ...prev, [chatId]: !prev[chatId] };
+        localStorage.setItem("emris_pinned_chats", JSON.stringify(next));
+        return next;
+      });
+    } catch (err) {
+      console.error("[Sidebar] Pin chat error:", err);
+    }
+  };
 
   const toggleProjectCollapse = (projectName) => {
     try {
@@ -211,19 +231,32 @@ export default function Sidebar({
                                   </svg>
                                   <span className="truncate">{chat.title}</span>
                                 </div>
-                                {onDeleteConversation && (
+                                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setDeleteTarget({ type: "conversation", id: chat.id, name: chat.title });
+                                      togglePinChat(chat.id);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 hover:text-[#ef4444] p-0.5 transition-opacity cursor-pointer"
-                                    title="Delete chat"
+                                    className={`p-0.5 hover:text-[#60a5fa] cursor-pointer ${pinnedChats[chat.id] ? "!opacity-100 text-[#3b82f6]" : "text-[#64748b]"}`}
+                                    title={pinnedChats[chat.id] ? "Unpin chat" : "Pin chat"}
                                   >
-                                    <i className="fa-regular fa-trash-can text-[9px]"></i>
+                                    <i className="fa-solid fa-thumbtack text-[9px] -rotate-45"></i>
                                   </button>
-                                )}
+                                  {onDeleteConversation && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteTarget({ type: "conversation", id: chat.id, name: chat.title });
+                                      }}
+                                      className="hover:text-[#ef4444] text-[#64748b] p-0.5 cursor-pointer"
+                                      title="Delete chat"
+                                    >
+                                      <i className="fa-regular fa-trash-can text-[9px]"></i>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
@@ -282,19 +315,32 @@ export default function Sidebar({
                       </svg>
                       <span className="truncate">{chat.title}</span>
                     </div>
-                    {onDeleteConversation && (
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteTarget({ type: "conversation", id: chat.id, name: chat.title });
+                          togglePinChat(chat.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 hover:text-[#ef4444] p-0.5 transition-opacity cursor-pointer"
-                        title="Delete chat"
+                        className={`p-0.5 hover:text-[#60a5fa] cursor-pointer ${pinnedChats[chat.id] ? "!opacity-100 text-[#3b82f6]" : "text-[#64748b]"}`}
+                        title={pinnedChats[chat.id] ? "Unpin chat" : "Pin chat"}
                       >
-                        <i className="fa-regular fa-trash-can text-[10px]"></i>
+                        <i className="fa-solid fa-thumbtack text-[10px] -rotate-45"></i>
                       </button>
-                    )}
+                      {onDeleteConversation && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({ type: "conversation", id: chat.id, name: chat.title });
+                          }}
+                          className="hover:text-[#ef4444] text-[#64748b] p-0.5 cursor-pointer"
+                          title="Delete chat"
+                        >
+                          <i className="fa-regular fa-trash-can text-[10px]"></i>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })

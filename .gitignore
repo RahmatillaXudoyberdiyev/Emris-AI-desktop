@@ -8,9 +8,12 @@ __pycache__/
 .env
 .DS_Store
 Thumbs.db
+data/
+*.db
 
 # Guidance, logs, and navigation documentation
 gemini_logs/
+GEMINI.md
 PROJECT_MAP.md
 backend/BACKEND_MAP.md
 frontend/FRONTEND_MAP.md

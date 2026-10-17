@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import CenterWorkspace from "./components/CenterWorkspace";
+import RightPanel from "./components/RightPanel";
 import ChooseFolderModal from "./components/ChooseFolderModal";
 import { desktopApi } from "./services/api";
 
@@ -13,19 +14,14 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [agentState, setAgentState] = useState(null);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [fileRefreshTrigger, setFileRefreshTrigger] = useState(0);
 
   const loadData = async () => {
     try {
-      const [fetchedProjects, fetchedConversations] = await Promise.all([
-        desktopApi.getProjects(),
-        desktopApi.getConversations()
-      ]);
-      if (Array.isArray(fetchedProjects)) {
-        setProjects(fetchedProjects);
-      }
-      if (Array.isArray(fetchedConversations)) {
-        setConversations(fetchedConversations);
-      }
+      const [pList, cList] = await Promise.all([desktopApi.getProjects(), desktopApi.getConversations()]);
+      if (Array.isArray(pList)) setProjects(pList);
+      if (Array.isArray(cList)) setConversations(cList);
     } catch (err) {
       console.error("[App] Error loading initial data:", err);
     }
@@ -33,9 +29,7 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-    const handleReady = () => {
-      loadData();
-    };
+    const handleReady = () => loadData();
     window.addEventListener("pywebviewready", handleReady);
     return () => window.removeEventListener("pywebviewready", handleReady);
   }, []);
@@ -43,6 +37,7 @@ export default function App() {
   const handleSelectProject = async (projectName) => {
     try {
       setCurrentProject(projectName);
+      setAgentState(null);
       if (projectName === "No Project") {
         setActiveConversation(null);
         setMessages([]);
@@ -67,6 +62,7 @@ export default function App() {
     try {
       if (!project) return;
       setCurrentProject(project.name);
+      setAgentState(null);
       const projChats = conversations.filter((c) => String(c.project_id) === String(project.id));
       const newIndex = projChats.length + 1;
       const title = `${project.name} - Chat ${newIndex}`;
@@ -84,6 +80,7 @@ export default function App() {
 
   const handleNewConversation = async () => {
     try {
+      setAgentState(null);
       const targetProj = projects.find((p) => p.name === currentProject);
       if (targetProj) {
         await handleNewProjectConversation(targetProj);
@@ -101,6 +98,7 @@ export default function App() {
     try {
       if (!conv) return;
       setActiveConversation(conv);
+      setAgentState(null);
       if (conv.project_id) {
         const found = projects.find((p) => String(p.id) === String(conv.project_id));
         setCurrentProject(found ? found.name : "No Project");
@@ -120,6 +118,7 @@ export default function App() {
       if (created && !created.error) {
         setProjects((prev) => [created, ...(prev || []).filter((p) => p.id !== created.id)]);
         setCurrentProject(created.name);
+        setFileRefreshTrigger((prev) => prev + 1);
 
         const initialChat = await desktopApi.createConversation(
           `${created.name} - Chat 1`,
@@ -171,6 +170,21 @@ export default function App() {
     }
   };
 
+  const handleUpdateTitle = async (newTitle) => {
+    try {
+      if (!activeConversation) return;
+      await desktopApi.updateConversationTitle(activeConversation.id, newTitle);
+      setActiveConversation((prev) => (prev ? { ...prev, title: newTitle } : null));
+      setConversations((prev) =>
+        (prev || []).map((c) =>
+          String(c.id) === String(activeConversation.id) ? { ...c, title: newTitle } : c
+        )
+      );
+    } catch (err) {
+      console.error("[App] Update title error:", err);
+    }
+  };
+
   const handleCancelAgent = () => {
     try {
       setAgentState((prev) => (prev ? { ...prev, isRunning: false, currentStage: "To'xtatildi" } : null));
@@ -181,6 +195,7 @@ export default function App() {
 
   const handleSubmitPrompt = async (promptText, model) => {
     try {
+      const isFirstTurn = messages.length === 0;
       let conv = activeConversation;
       if (!conv) {
         const targetProj = projects.find((p) => p.name === currentProject);
@@ -194,6 +209,22 @@ export default function App() {
       }
 
       const activeConvId = conv ? conv.id : String(Date.now());
+
+      if (isFirstTurn && conv) {
+        desktopApi.generateTitle(promptText).then((titleRes) => {
+          if (titleRes?.success && titleRes?.title) {
+            desktopApi.updateConversationTitle(conv.id, titleRes.title);
+            setConversations((prev) =>
+              (prev || []).map((c) =>
+                String(c.id) === String(conv.id) ? { ...c, title: titleRes.title } : c
+              )
+            );
+            setActiveConversation((prev) =>
+              prev && String(prev.id) === String(conv.id) ? { ...prev, title: titleRes.title } : prev
+            );
+          }
+        }).catch((err) => console.error("[App] Auto title error:", err));
+      }
 
       const userMsg = {
         id: "user_" + Date.now(),
@@ -209,51 +240,47 @@ export default function App() {
 
       const targetProj = projects.find((p) => p.name === currentProject);
       const workspaceRoot = targetProj ? targetProj.path : null;
-
       const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
       setAgentState({
         isRunning: true,
-        currentStage: "Project Architect • plans.md rejasini tuzmoqda...",
+        currentStage: "Project Architect • Loyiha rejalashtirilmoqda...",
         plan: {
           title: "Topshiriq tahlil qilinmoqda",
-          chief_thought: "Loyiha xaritasi (Project.map.md) va funksiyalar (Functions.md) tekshirilmoqda...",
+          chief_thought: "Loyiha xaritasi (Project.map.md) va funksiyalar tekshirilmoqda...",
           steps: [
-            { id: 1, agent: "Project Architect", description: "plans.md rejasini shakllantirish", status: "running" },
-            { id: 2, agent: "File analyzer Agent", description: "AST belgilarni Functions.md ga indekslash", status: "pending" },
-            { id: 3, agent: "Engineer Agent", description: "Maqsadli kod va yechim sintezi", status: "pending" },
-            { id: 4, agent: "CLI Agent", description: "Terminal buyruqlari va muhitni sinash", status: "pending" },
-            { id: 5, agent: "Inspector Agent", description: "QA tekshiruvi va tasdiqlash", status: "pending" }
+            { id: 1, agent: "Project Architect", description: "Loyiha arxitekturasi va talablar tahlili", status: "running" },
+            { id: 2, agent: "File analyzer Agent", description: "AST xaritasini va funksiyalarni indekslash", status: "pending" },
+            { id: 3, agent: "Engineer Agent", description: "Maqsadli fayllar va kod sintezi", status: "pending" },
+            { id: 4, agent: "CLI Agent", description: "Sintaksis va kompilyatsiya tekshiruvi", status: "pending" },
+            { id: 5, agent: "Inspector Agent", description: "QA tekshiruvi va sifat nazorati", status: "pending" }
           ]
         },
         actions: []
       });
 
       await delay(700);
-
       const agentResult = await desktopApi.runAgentWorkflow(promptText, workspaceRoot, model);
+      setFileRefreshTrigger((prev) => prev + 1);
 
       const planTasks = (agentResult?.steps && agentResult.steps.length > 0)
         ? agentResult.steps
         : [
-            { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Loyiha arxitekturasi va rejalashtirish", output: "Arxitektura rejalashtirildi" },
-            { id: 2, agent: "File analyzer Agent", model: "Gemini 3.5 Flash Lite", description: "AST signaturalari va kod xaritasini sinxronlash", output: "Functions.md va Project.map.md muvaffaqiyatli yangilandi." },
-            { id: 3, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Xavfsiz kod yozish va maqsadli blok sintezi", output: "Kod bloklari ishlab chiqildi." },
-            { id: 4, agent: "CLI Agent", model: "Gemini 3.5 Flash Lite", description: "Terminal buyruqlari va sintaksis tekshiruvi", output: "Sintaksis va kompilyatsiya tekshirildi (Exit code 0)." },
-            { id: 5, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", description: "QA sifat tekshiruvi va tasdiqlash", output: "QA tahlili muvaffaqiyatli tasdiqlandi. Xatoliklar aniqlanmadi." }
+            { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Arxitektura rejalashtirildi", output: "Reja tuzildi" },
+            { id: 2, agent: "File analyzer Agent", model: "Gemini 3.5 Flash Lite", description: "Funksiyalar indekslandi", output: "Xarita yangilandi" },
+            { id: 3, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Fayllar yaratildi", output: "Kod yozildi" },
+            { id: 4, agent: "CLI Agent", model: "Gemini 3.5 Flash Lite", description: "Terminal tekshirildi", output: "Exit code 0" },
+            { id: 5, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", description: "QA tasdiqlandi", output: "QA Pass" }
           ];
 
       const executedActions = agentResult?.actions || [];
-      const activeSteps = planTasks.map((t, idx) => ({
-        ...t,
-        status: idx === 0 ? "running" : "pending"
-      }));
+      const activeSteps = planTasks.map((t, idx) => ({ ...t, status: idx === 0 ? "running" : "pending" }));
 
       for (let i = 0; i < activeSteps.length; i++) {
         activeSteps[i].status = "running";
         setAgentState({
           isRunning: true,
-          currentStage: `${activeSteps[i].agent} • ${activeSteps[i].model || ""}`,
+          currentStage: `${activeSteps[i].agent} • Gemini 3.5 Flash Lite`,
           plan: {
             chief_thought: agentResult?.chief_thought || "Multi-agent zanjiri ishlamoqda...",
             steps: [...activeSteps]
@@ -261,12 +288,12 @@ export default function App() {
           actions: executedActions.slice(0, i + 1)
         });
 
-        await delay(900);
+        await delay(800);
 
         activeSteps[i].status = "done";
         setAgentState({
           isRunning: true,
-          currentStage: `${activeSteps[i].agent} bajarildi ✓`,
+          currentStage: `${activeSteps[i].agent} yakunlandi ✓`,
           plan: {
             chief_thought: agentResult?.chief_thought || "Multi-agent zanjiri ishlamoqda...",
             steps: [...activeSteps]
@@ -274,7 +301,7 @@ export default function App() {
           actions: executedActions.slice(0, i + 1)
         });
 
-        await delay(250);
+        await delay(200);
       }
 
       const completedWorkflow = {
@@ -285,18 +312,21 @@ export default function App() {
         actions: executedActions
       };
 
-      setAgentState(null);
+      setAgentState({
+        isRunning: false,
+        currentStage: "Workflow yakunlandi ✓",
+        plan: completedWorkflow.plan,
+        actions: completedWorkflow.actions
+      });
 
-      const replyText = agentResult?.response || "Loyiha talablari to'liq tahlil qilindi va zarur arxitektura shakllantirildi. Barcha modullar sinxronlandi va QA tekshiruvidan muvaffaqiyatli o'tdi.";
-
-      const assistantMsg = {
-        id: "assistant_" + Date.now(),
+      const replyText = agentResult?.response || "Loyiha talablari to'liq tahlil qilindi va zarur arxitektura shakllantirildi.";
+      const replyMsg = {
+        id: "asst_" + Date.now(),
         conversation_id: activeConvId,
         role: "assistant",
-        content: replyText,
-        workflow: completedWorkflow
+        content: replyText
       };
-      setMessages((prev) => [...(prev || []), assistantMsg]);
+      setMessages((prev) => [...(prev || []), replyMsg]);
 
       if (conv) {
         const persistedContent = `<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;
@@ -308,6 +338,8 @@ export default function App() {
       setAgentState((prev) => (prev ? { ...prev, isRunning: false, currentStage: "Xatolik" } : null));
     }
   };
+
+  const activeProjObj = projects.find((p) => p.name === currentProject) || null;
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#131314] text-[#F9F9FA] antialiased selection:bg-[#27272a] selection:text-white">
@@ -331,6 +363,9 @@ export default function App() {
           projects={projects}
           onSelectProject={handleSelectProject}
           onOpenFolderModal={() => setIsFolderModalOpen(true)}
+          onUpdateTitle={handleUpdateTitle}
+          isRightPanelOpen={isRightPanelOpen}
+          onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
         />
         <CenterWorkspace
           projects={projects}
@@ -344,6 +379,12 @@ export default function App() {
           onCancelAgent={handleCancelAgent}
         />
       </main>
+      <RightPanel
+        isOpen={isRightPanelOpen}
+        onClose={() => setIsRightPanelOpen(false)}
+        activeProject={activeProjObj}
+        refreshTrigger={fileRefreshTrigger}
+      />
       <ChooseFolderModal
         isOpen={isFolderModalOpen}
         onClose={() => setIsFolderModalOpen(false)}

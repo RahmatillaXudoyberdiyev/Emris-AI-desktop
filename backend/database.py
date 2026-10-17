@@ -188,6 +188,21 @@ class DatabaseManager:
             print(f"[DB] Error deleting conversation: {exc}")
             return False
 
+    def update_conversation_title(self, conversation_id: str, title: str):
+        try:
+            now = datetime.utcnow().isoformat()
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?;",
+                    (title.strip(), now, conversation_id)
+                )
+                conn.commit()
+                return True
+        except Exception as exc:
+            print(f"[DB] update_conversation_title error: {exc}")
+            return False
+
     def get_messages(self, conversation_id: str):
         try:
             with self._get_connection() as conn:

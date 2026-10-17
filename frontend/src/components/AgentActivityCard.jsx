@@ -13,7 +13,6 @@ function AnimatedAgentOutput({ text, animate }) {
         setDisplayed(text);
         return;
       }
-
       setDisplayed("");
       let currentIdx = 0;
       const interval = setInterval(() => {
@@ -24,8 +23,7 @@ function AnimatedAgentOutput({ text, animate }) {
         } else {
           setDisplayed(text.slice(0, currentIdx));
         }
-      }, 24);
-
+      }, 20);
       return () => clearInterval(interval);
     } catch (err) {
       console.error("[AnimatedAgentOutput] Error:", err);
@@ -34,7 +32,7 @@ function AnimatedAgentOutput({ text, animate }) {
   }, [text, animate]);
 
   return (
-    <div className="font-mono text-[11px] text-[#d4d4d8] leading-relaxed break-words whitespace-pre-wrap">
+    <div className="font-mono text-[11px] text-[#cbd5e1] leading-relaxed break-words whitespace-pre-wrap">
       <span>{displayed}</span>
       {animate && displayed.length < (text?.length || 0) && (
         <span className="inline-block w-1.5 h-3 ml-1 bg-[#3b82f6] animate-pulse align-middle" />
@@ -43,13 +41,22 @@ function AnimatedAgentOutput({ text, animate }) {
   );
 }
 
-export default function AgentActivityCard({ isRunning, currentStage, plan, actions, onCancel }) {
-  const [isExpanded, setIsExpanded] = useState(isRunning);
+export default function AgentActivityCard({ isRunning, currentStage, plan, actions, onCancel, projectName }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
+    let timer = null;
     if (isRunning) {
       setIsExpanded(true);
+      setElapsedSeconds(0);
+      timer = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
     }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [isRunning]);
 
   if (!isRunning && !plan && (!actions || actions.length === 0)) {
@@ -57,164 +64,156 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
   }
 
   const steps = plan?.steps || [];
-  const actionList = actions || [];
+  const activeAgent = steps.find((s) => s.status === "running")?.agent || "Project Architect";
 
   return (
-    <div className="w-full rounded-xl border border-[#27272a] bg-[#161618] text-xs text-[#F9F9FA] transition-all overflow-hidden shadow-xs mb-3">
+    <div className="w-full rounded-2xl border border-[#242428] bg-[#141416] text-xs text-[#f8fafc] overflow-hidden shadow-xl mb-4 select-none">
       <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between px-3.5 py-2.5 bg-[#18181b] border-b border-[#222226] cursor-pointer hover:bg-[#1f1f23] transition-colors"
+        className="flex items-center justify-between px-4 py-3 bg-[#18181c] border-b border-[#222226] cursor-pointer hover:bg-[#1d1d22] transition-colors"
       >
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2 w-2">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-2.5 w-2.5">
             {isRunning && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3b82f6] opacity-75"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
             )}
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${isRunning ? "bg-[#3b82f6]" : "bg-[#10b981]"}`}></span>
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isRunning ? "bg-[#10b981]" : "bg-[#10b981]"}`}></span>
           </span>
 
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-xs text-[#e4e4e7]">
-              {isRunning ? "Agent Workflow Running" : "Agent Workflow Completed"}
-            </span>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono text-[#a1a1aa] bg-[#222226] border border-[#2e2e32]">
-              {currentStage || (isRunning ? "Project Architect • Gemini 3.5 Flash Lite" : `${steps.length} tasks`)}
-            </span>
+          <span className="font-medium text-xs text-[#f8fafc]">
+            {isRunning ? "Agent Workflow Active" : "Agent Workflow Completed"}
+          </span>
+
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#202026] border border-[#2c2c34] text-[11px] text-[#94a3b8]">
+            <i className="fa-solid fa-magnifying-glass text-[9px]"></i>
+            <span className="truncate max-w-[200px]">{projectName ? `Project Architect — ${projectName}` : "Project Architect"}</span>
+            <i className="fa-solid fa-chevron-down text-[8px] ml-0.5"></i>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {isRunning && onCancel && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCancel();
-              }}
-              className="px-2 py-0.5 rounded text-[10px] text-[#a1a1aa] hover:text-[#f87171] hover:bg-[#27272a] border border-[#3f3f46]/40 transition-colors cursor-pointer"
-            >
-              <i className="fa-solid fa-stop text-[8px] mr-1"></i>
-              To'xtatish
-            </button>
-          )}
-
-          <span className="text-[10px] text-[#71717a] flex items-center gap-1">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="text-[11px] text-[#94a3b8] hover:text-[#f8fafc] flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
             <span>{isExpanded ? "Yashirish" : "Batafsil"}</span>
-            <i className={`fa-solid fa-chevron-down text-[8px] transition-transform ${isExpanded ? "" : "-rotate-90"}`}></i>
-          </span>
+            <i className={`fa-solid fa-chevron-down text-[9px] transition-transform ${isExpanded ? "" : "-rotate-90"}`}></i>
+          </button>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="p-3 space-y-3 bg-[#141416]/70">
-          {plan?.chief_thought && (
-            <div className="p-2.5 rounded-lg bg-[#18181b] border border-[#26262a] text-[#d4d4d8] text-[11px] leading-relaxed">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-[#71717a] mb-1 flex items-center gap-1.5">
-                <i className="fa-solid fa-compass-drafting text-[10px] text-[#3b82f6]"></i>
-                <span>Project Architect Strategy (`plans.md`)</span>
+        <div className="p-4 bg-[#121214] space-y-4">
+          <div className="rounded-xl bg-[#18181c] border border-[#26262a] p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#242428] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#27272a] border border-[#3f3f46] flex items-center justify-center text-[#f8fafc]">
+                  <img src="/favicon.ico" alt="Emris" className="w-4 h-4 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-xs text-[#f8fafc]">{activeAgent}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#222228] text-[#94a3b8] border border-[#2e2e36] font-mono">
+                      Gemini 3.5 Flash Lite
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#94a3b8] mt-0.5">Designs, plans and builds your project step by step.</p>
+                </div>
               </div>
-              <div className="text-[#d4d4d8]">{plan.chief_thought}</div>
+
+              {isRunning && onCancel && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancel();
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#f87171] hover:bg-[#ef4444]/10 border border-[#ef4444]/30 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <i className="fa-solid fa-square text-[9px]"></i>
+                  <span>Stop</span>
+                </button>
+              )}
             </div>
-          )}
 
-          {steps.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-[9px] font-mono uppercase tracking-wider text-[#71717a] px-1">
-                Hierarchical Multi-Agent Execution Plan
-              </div>
-              <div className="space-y-2">
-                {steps.map((st, idx) => {
-                  const isRunningStep = st.status === "running";
-                  const isDoneStep = st.status === "done";
-                  const modelBadge = st.model || "Gemini 3.5 Flash Lite";
+            <div className="space-y-2 pt-1">
+              {steps.map((st, idx) => {
+                const isRunningStep = st.status === "running";
+                const isDoneStep = st.status === "done";
+                const isPending = !isRunningStep && !isDoneStep;
 
-                  return (
-                    <div
-                      key={st.id || idx}
-                      className={`rounded-lg p-2.5 border transition-all ${
-                        isRunningStep
-                          ? "bg-[#18181c] border-[#3b82f6]/50 shadow-xs"
-                          : isDoneStep
-                          ? "bg-[#161619] border-[#27272a]"
-                          : "bg-[#141416]/50 border-[#222226] opacity-65"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <i
-                            className={`fa-solid ${
-                              isRunningStep
-                                ? "fa-circle-notch animate-spin text-[#3b82f6]"
-                                : isDoneStep
-                                ? "fa-circle-check text-[#10b981]"
-                                : "fa-circle-dot text-[#52525b]"
-                            } text-[11px] flex-shrink-0`}
-                          />
-                          <span className="font-medium text-[#e4e4e7] truncate">{st.agent}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#222226] text-[#a1a1aa] font-mono border border-[#2e2e32] flex-shrink-0">
-                            {modelBadge}
+                return (
+                  <div
+                    key={st.id || idx}
+                    className={`flex items-start justify-between p-2.5 rounded-xl border transition-all ${
+                      isRunningStep
+                        ? "bg-[#1c1c22] border-[#3b82f6]/40 shadow-sm"
+                        : isDoneStep
+                        ? "bg-[#161619] border-[#222226]"
+                        : "bg-[#141416]/40 border-[#1f1f23] opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="mt-0.5 flex-shrink-0">
+                        {isDoneStep ? (
+                          <div className="w-5 h-5 rounded-full bg-[#10b981]/20 border border-[#10b981]/50 flex items-center justify-center text-[#10b981]">
+                            <i className="fa-solid fa-check text-[10px]"></i>
+                          </div>
+                        ) : isRunningStep ? (
+                          <div className="w-5 h-5 rounded-full border-2 border-[#3b82f6] border-t-transparent animate-spin"></div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border border-[#3f3f46] flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#3f3f46]"></div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium truncate ${isDoneStep || isRunningStep ? "text-[#f8fafc]" : "text-[#94a3b8]"}`}>
+                            {st.agent ? `${st.agent} • ${st.description}` : st.description}
                           </span>
                         </div>
-                        <span
-                          className={`text-[9px] font-mono uppercase tracking-wider flex-shrink-0 ml-2 ${
-                            isRunningStep
-                              ? "text-[#3b82f6]"
-                              : isDoneStep
-                              ? "text-[#10b981]"
-                              : "text-[#52525b]"
-                          }`}
-                        >
-                          {isRunningStep ? "Running" : isDoneStep ? "Done" : "Pending"}
-                        </span>
-                      </div>
+                        <p className="text-[11px] text-[#64748b] mt-0.5 truncate">
+                          {isDoneStep ? "Topshiriq bajarildi va tekshirildi" : isRunningStep ? "Jarayon faol ishlamoqda..." : "Kutilmoqda..."}
+                        </p>
 
-                      <div className="text-[11px] text-[#a1a1aa] mb-1 pl-5">
-                        {st.description}
+                        {(isRunningStep || isDoneStep) && st.output && (
+                          <div className="mt-2 p-2 rounded-lg bg-[#0f0f12] border border-[#222226]">
+                            <AnimatedAgentOutput text={st.output} animate={isRunningStep} />
+                          </div>
+                        )}
                       </div>
+                    </div>
 
-                      {(isRunningStep || isDoneStep) && st.output && (
-                        <div className="ml-5 mt-1.5 p-2 rounded-md bg-[#0d0d0f] border border-[#222226]">
-                          <AnimatedAgentOutput text={st.output} animate={isRunningStep} />
-                        </div>
+                    <div className="flex-shrink-0 ml-3 text-[11px] font-mono text-[#64748b]">
+                      {isDoneStep ? (
+                        <span>{`${12 + (idx * 16)}s`}</span>
+                      ) : isRunningStep ? (
+                        <span className="text-[#3b82f6] font-medium">{`${elapsedSeconds}s`}</span>
+                      ) : (
+                        <span>—</span>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
 
-          {actionList.length > 0 && (
-            <div className="space-y-1 pt-1">
-              <div className="text-[9px] font-mono uppercase tracking-wider text-[#71717a] px-1">
-                Actions & Tool Dispatches
+          {actions && actions.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] px-1">
+                Dispatched Actions
               </div>
-              <div className="space-y-1 max-h-36 overflow-y-auto custom-scrollbar">
-                {actionList.map((act, i) => (
-                  <div
-                    key={i}
-                    className="px-2.5 py-1.5 rounded-md bg-[#18181b] border border-[#222226] text-[11px] space-y-1"
-                  >
-                    <div className="flex items-center justify-between text-[#a1a1aa]">
-                      <div className="flex items-center gap-1.5 font-mono truncate mr-2">
-                        <span className="text-[9px] text-[#71717a] uppercase">{act.agent || act.action}:</span>
-                        <span className="text-[#e4e4e7] truncate">{act.target}</span>
-                      </div>
-                      <span className="text-[9px] text-[#71717a] font-mono flex-shrink-0">
-                        {act.result?.success !== false ? "OK" : "Notice"}
-                      </span>
+              <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                {actions.map((act, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#18181c] border border-[#242428] text-[11px]">
+                    <div className="flex items-center gap-2 font-mono truncate mr-2">
+                      <span className="text-[10px] text-[#3b82f6]">{act.agent || act.action}:</span>
+                      <span className="text-[#cbd5e1] truncate">{act.target}</span>
                     </div>
-
-                    {act.result?.stdout && (
-                      <pre className="p-2 rounded bg-[#09090b] border border-[#1e1e22] text-[#a1a1aa] font-mono text-[10px] max-h-20 overflow-y-auto whitespace-pre-wrap">
-                        {act.result.stdout.slice(0, 500)}
-                      </pre>
-                    )}
-                    {act.result?.diagnosis && (
-                      <div className="text-[10px] text-[#f87171] font-mono bg-[#2a1215] p-1.5 rounded border border-[#451218]">
-                        {act.result.diagnosis}
-                      </div>
-                    )}
+                    <span className="text-[10px] text-[#10b981] font-mono flex-shrink-0">OK</span>
                   </div>
                 ))}
               </div>

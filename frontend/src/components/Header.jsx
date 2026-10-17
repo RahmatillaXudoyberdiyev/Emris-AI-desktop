@@ -7,14 +7,20 @@ export default function Header({
   currentSessionTitle,
   projects = [],
   onSelectProject,
-  onOpenFolderModal
+  onOpenFolderModal,
+  onUpdateTitle,
+  isRightPanelOpen,
+  onToggleRightPanel
 }) {
   const { language, setLanguage, t } = useTranslation();
   const [isLangOpen, setIsLangOpen] = useState(false);
   const [isProjectOpen, setIsProjectOpen] = useState(false);
   const [quota, setQuota] = useState(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
   const langRef = useRef(null);
   const projectRef = useRef(null);
+  const titleInputRef = useRef(null);
 
   useEffect(() => {
     desktopApi.getQuota().then((data) => {
@@ -23,6 +29,17 @@ export default function Header({
       }
     }).catch((err) => console.error("[Header] Quota error:", err));
   }, []);
+
+  useEffect(() => {
+    setTitleInput(currentSessionTitle || "");
+  }, [currentSessionTitle]);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -40,6 +57,18 @@ export default function Header({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleTitleSubmit = () => {
+    try {
+      setIsEditingTitle(false);
+      const trimmed = titleInput.trim();
+      if (trimmed && trimmed !== currentSessionTitle && onUpdateTitle) {
+        onUpdateTitle(trimmed);
+      }
+    } catch (err) {
+      console.error("[Header] Title submit error:", err);
+    }
+  };
 
   const languages = [
     {
@@ -115,22 +144,26 @@ export default function Header({
     }
   };
 
+  const projectDisplay = currentProject && currentProject !== "No Project"
+    ? `Project Architect — ${currentProject}`
+    : "Project Architect";
+
   return (
-    <header className="h-14 border-b border-[#26262a] bg-[#151515] px-5 flex items-center justify-between flex-shrink-0 z-30 select-none">
-      <div className="flex items-center gap-3">
+    <header className="h-14 border-b border-[#222226] bg-[#131316] px-5 flex items-center justify-between flex-shrink-0 z-30 select-none">
+      <div className="flex items-center gap-3 min-w-0">
         <div ref={projectRef} className="relative">
           <button
             type="button"
             onClick={() => setIsProjectOpen(!isProjectOpen)}
-            className="text-xs text-[#F9F9FA] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] transition-colors cursor-pointer"
+            className="text-xs text-[#f8fafc] flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#27272a] border border-[#2e2e34] transition-colors cursor-pointer"
           >
-            <i className="fa-solid fa-folder text-[#94a3b8]"></i>
-            <span className="font-medium">{currentProject && currentProject !== "No Project" ? currentProject : t("workspace.no_project")}</span>
-            <i className="fa-solid fa-chevron-down text-[8px] text-[#64748b] ml-0.5"></i>
+            <i className="fa-solid fa-folder text-[#38bdf8]"></i>
+            <span className="font-medium truncate max-w-[220px]">{projectDisplay}</span>
+            <i className="fa-solid fa-chevron-down text-[8px] text-[#94a3b8]"></i>
           </button>
 
           {isProjectOpen && (
-            <div className="absolute left-0 top-full mt-1.5 w-56 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl p-1.5 z-50 text-xs text-[#F9F9FA] space-y-0.5">
+            <div className="absolute left-0 top-full mt-1.5 w-60 bg-[#1c1c20] border border-[#2e2e34] rounded-2xl shadow-2xl p-1.5 z-50 text-xs text-[#f8fafc] space-y-0.5">
               <div className="max-h-52 overflow-y-auto space-y-0.5 custom-scrollbar py-0.5">
                 <button
                   type="button"
@@ -143,7 +176,7 @@ export default function Header({
                     }
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
-                    currentProject === "No Project" ? "bg-[#28282c] text-[#F9F9FA] font-medium" : "hover:bg-[#222226] text-[#D1D1D6]"
+                    currentProject === "No Project" ? "bg-[#27272a] text-[#f8fafc] font-medium" : "hover:bg-[#222226] text-[#cbd5e1]"
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
@@ -168,11 +201,11 @@ export default function Header({
                         }
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
-                        isSelected ? "bg-[#28282c] text-[#F9F9FA] font-medium" : "hover:bg-[#222226] text-[#D1D1D6]"
+                        isSelected ? "bg-[#27272a] text-[#f8fafc] font-medium" : "hover:bg-[#222226] text-[#cbd5e1]"
                       }`}
                     >
                       <div className="flex items-center gap-2.5 truncate">
-                        <i className="fa-solid fa-folder text-[#94a3b8] text-xs flex-shrink-0"></i>
+                        <i className="fa-solid fa-folder text-[#38bdf8] text-xs flex-shrink-0"></i>
                         <span className="truncate">{p.name}</span>
                       </div>
                       {isSelected && <i className="fa-solid fa-check text-[#60a5fa] text-[10px]"></i>}
@@ -193,7 +226,7 @@ export default function Header({
                         console.error("[Header] Open modal error:", err);
                       }
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[#F9F9FA] hover:bg-[#28282c] transition-colors text-left cursor-pointer font-medium"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[#f8fafc] hover:bg-[#27272a] transition-colors text-left cursor-pointer font-medium"
                   >
                     <i className="fa-solid fa-plus text-[#60a5fa] text-xs"></i>
                     <span>{t("workspace.new_project")}</span>
@@ -204,19 +237,36 @@ export default function Header({
           )}
         </div>
 
-        <span className="text-[#64748b]">/</span>
-
-        <span className="text-xs font-medium text-[#D1D1D6]">
-          {currentSessionTitle || t("header.untitled")}
-        </span>
-
-        <button
-          type="button"
-          className="text-[#64748b] hover:text-[#F9F9FA] text-xs p-1 cursor-pointer transition-colors"
-          title="Rename Session"
-        >
-          <i className="fa-solid fa-pen text-[10px]"></i>
-        </button>
+        <div className="flex items-center gap-2 min-w-0">
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              onBlur={handleTitleSubmit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleTitleSubmit();
+                if (e.key === "Escape") setIsEditingTitle(false);
+              }}
+              className="bg-[#1c1c20] text-[#f8fafc] text-xs font-medium px-2 py-1 rounded-md border border-[#3b82f6] outline-none"
+            />
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs font-medium text-[#cbd5e1] truncate max-w-[260px]">
+                {currentSessionTitle || t("header.untitled")}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsEditingTitle(true)}
+                className="text-[#64748b] hover:text-[#f8fafc] text-xs p-1 cursor-pointer transition-colors"
+                title="Edit chat title"
+              >
+                <i className="fa-solid fa-pen text-[10px]"></i>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -224,14 +274,14 @@ export default function Header({
           <button
             type="button"
             onClick={() => setIsLangOpen(!isLangOpen)}
-            className="flex items-center gap-2 bg-[#1c1c1f] hover:bg-[#222226] border border-[#2e2e32] rounded-xl px-2.5 py-1.5 text-xs text-[#F9F9FA] transition-colors cursor-pointer shadow-sm"
+            className="flex items-center gap-2 bg-[#1c1c20] hover:bg-[#222226] border border-[#2e2e34] rounded-xl px-2.5 py-1.5 text-xs text-[#f8fafc] transition-colors cursor-pointer shadow-sm"
           >
             <span className="flex items-center">{currentFlag}</span>
             <i className="fa-solid fa-chevron-down text-[8px] text-[#94a3b8]"></i>
           </button>
 
           {isLangOpen && (
-            <div className="absolute right-0 mt-1.5 w-36 bg-[#1c1c1f] border border-[#2e2e32] rounded-2xl shadow-2xl py-1 z-50 text-xs text-[#F9F9FA] space-y-0.5">
+            <div className="absolute right-0 mt-1.5 w-36 bg-[#1c1c20] border border-[#2e2e34] rounded-2xl shadow-2xl py-1 z-50 text-xs text-[#f8fafc] space-y-0.5">
               {languages.map((lang) => (
                 <button
                   key={lang.code}
@@ -239,8 +289,8 @@ export default function Header({
                   onClick={() => handleSelectLanguage(lang.code)}
                   className={`w-full px-3 py-2 flex items-center gap-2.5 text-left transition-colors cursor-pointer ${
                     language === lang.code
-                      ? "bg-[#28282c] text-[#F9F9FA] font-medium"
-                      : "hover:bg-[#222226] text-[#D1D1D6] hover:text-[#F9F9FA]"
+                      ? "bg-[#27272a] text-[#f8fafc] font-medium"
+                      : "hover:bg-[#222226] text-[#cbd5e1] hover:text-[#f8fafc]"
                   }`}
                 >
                   {lang.flag}
@@ -253,22 +303,37 @@ export default function Header({
 
         {quota && quota.remaining !== undefined && (
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] border border-[#2e2e32] text-xs"
-            title="Bugungi bepul so'rovlar limiti"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e1e22] border border-[#2e2e34] text-xs"
+            title="Daily request quota"
           >
             <i className="fa-solid fa-bolt text-[#60a5fa] text-[10px]"></i>
-            <span className="text-[#F9F9FA] font-medium">{quota.remaining}</span>
+            <span className="text-[#f8fafc] font-medium">{quota.remaining}</span>
             <span className="text-[#64748b]">/ {quota.limit || 50}</span>
           </div>
         )}
 
         <button
           type="button"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e22] hover:bg-[#28282c] border border-[#2e2e32] text-[#D1D1D6] hover:text-[#F9F9FA] text-xs transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#27272a] border border-[#2e2e34] text-[#cbd5e1] hover:text-[#f8fafc] text-xs transition-colors cursor-pointer"
         >
           <i className="fa-solid fa-key text-[#94a3b8] text-xs"></i>
           <span>{t("header.api_keys")}</span>
         </button>
+
+        {onToggleRightPanel && (
+          <button
+            type="button"
+            onClick={onToggleRightPanel}
+            className={`p-2 rounded-xl border transition-colors cursor-pointer text-xs ${
+              isRightPanelOpen
+                ? "bg-[#2563eb]/20 text-[#60a5fa] border-[#2563eb]/40"
+                : "bg-[#1e1e22] text-[#94a3b8] hover:text-[#f8fafc] border-[#2e2e34]"
+            }`}
+            title="Toggle Files & Code Panel"
+          >
+            <i className="fa-solid fa-table-columns"></i>
+          </button>
+        )}
       </div>
     </header>
   );

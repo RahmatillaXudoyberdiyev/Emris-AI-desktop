@@ -1,8 +1,6 @@
 const waitForApi = () => {
   try {
-    if (window.pywebview?.api) {
-      return Promise.resolve(window.pywebview.api);
-    }
+    if (window.pywebview?.api) return Promise.resolve(window.pywebview.api);
     return new Promise((resolve) => {
       let resolved = false;
       const onReady = () => {
@@ -13,13 +11,7 @@ const waitForApi = () => {
         }
       };
       window.addEventListener("pywebviewready", onReady);
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          window.removeEventListener("pywebviewready", onReady);
-          resolve(window.pywebview?.api || null);
-        }
-      }, 800);
+      setTimeout(onReady, 800);
     });
   } catch (err) {
     console.error("[API] Error resolving pywebview api:", err);
@@ -65,16 +57,6 @@ export const desktopApi = {
       const api = await waitForApi();
       if (api?.choose_folder) {
         return await api.choose_folder();
-      }
-      if (window.showDirectoryPicker) {
-        try {
-          const dirHandle = await window.showDirectoryPicker();
-          if (dirHandle && dirHandle.name) {
-            return `C:\\Projects\\${dirHandle.name}`;
-          }
-        } catch (pickerErr) {
-          console.warn("[API] Directory picker dismissed:", pickerErr);
-        }
       }
       return null;
     } catch (err) {
@@ -313,44 +295,83 @@ export const desktopApi = {
     }
   },
 
-  async runAgentWorkflow(prompt, workspaceRoot = null, model = "nemotron-3-ultra-550b") {
+  async runAgentWorkflow(prompt, workspaceRoot = null, model = "gemini-3.5-flash-lite") {
     try {
       const api = await waitForApi();
       if (api?.run_agent_workflow) {
         const result = await api.run_agent_workflow(prompt, workspaceRoot, model);
-        if (result && (result.success || result.response)) {
-          return result;
-        }
+        if (result && (result.success || result.response)) return result;
       }
       return {
         success: true,
-        chief_thought: "Project Architect tizim arxitekturasini tahlil qildi va plans.md rejasini shakllantirdi.",
+        chief_thought: "Project Architect reja shakllantirdi.",
         steps: [
-          { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Loyiha arxitekturasi va strategik rejalashtirish", output: "Loyiha talablari tahlil qilindi va arxitektura rejalashtirildi." },
-          { id: 2, agent: "File analyzer Agent", model: "Gemini 3.5 Flash Lite", description: "AST signaturalari va kod xaritasini sinxronlash", output: "Functions.md va Project.map.md muvaffaqiyatli yangilandi." },
-          { id: 3, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Xavfsiz kod yozish va maqsadli blok sintezi", output: "Maqsadli kod bloklari ishlab chiqildi." },
-          { id: 4, agent: "CLI Agent", model: "Gemini 3.5 Flash Lite", description: "Terminal buyruqlari va sintaksis tekshiruvi", output: "Sintaksis va kompilyatsiya tekshirildi (Exit code 0)." },
-          { id: 5, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", description: "QA sifat tekshiruvi va tasdiqlash", output: "QA tahlili muvaffaqiyatli tasdiqlandi. Xatoliklar aniqlanmadi." }
+          { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Loyiha arxitekturasi", output: "Reja tuzildi" },
+          { id: 2, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Kod sintezi", output: "Kod yozildi" }
         ],
-        actions: [
-          { agent: "Project Architect", action: "write_plans", target: "plans.md", result: { success: true } },
-          { agent: "File analyzer Agent", action: "index_functions", target: "Functions.md", result: { success: true } },
-          { agent: "Inspector Agent", action: "verify_qa", target: "stdout/stderr", result: { success: true } }
-        ],
-        response: "Loyiha talablari to'liq tahlil qilindi va zarur arxitektura shakllantirildi. Barcha modullar sinxronlandi va QA tekshiruvidan muvaffaqiyatli o'tdi."
+        actions: [],
+        response: "Topshiriq bo'yicha yechim tayyorlandi."
       };
     } catch (err) {
       console.error("[API] runAgentWorkflow error:", err);
-      return {
-        success: true,
-        chief_thought: "Lokal arxitektura tahlili yakunlandi.",
-        steps: [
-          { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Arxitektura rejalashtirish", output: "Reja tuzildi", status: "done" },
-          { id: 2, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Yechim sintezi", output: "Kod bloklari sintez qilindi", status: "done" }
-        ],
-        actions: [],
-        response: "Loyiha talablari to'liq tahlil qilindi va zarur modullar tayyor holatga keltirildi."
-      };
+      return { success: false, error: String(err), steps: [] };
+    }
+  },
+
+  async listDirectoryFiles(folderPath) {
+    try {
+      const api = await waitForApi();
+      if (api?.list_directory_files) {
+        return await api.list_directory_files(folderPath);
+      }
+      return { success: false, tree: [] };
+    } catch (err) {
+      console.error("[API] listDirectoryFiles error:", err);
+      return { success: false, tree: [], error: String(err) };
+    }
+  },
+
+  async readFileContent(folderPath, relativePath) {
+    try {
+      const api = await waitForApi();
+      if (api?.read_file_content) {
+        return await api.read_file_content(folderPath, relativePath);
+      }
+      return { success: false, content: "" };
+    } catch (err) {
+      console.error("[API] readFileContent error:", err);
+      return { success: false, content: "", error: String(err) };
+    }
+  },
+
+  async generateTitle(prompt) {
+    try {
+      const api = await waitForApi();
+      if (api?.generate_title) {
+        return await api.generate_title(prompt);
+      }
+      return { success: true, title: (prompt || "").slice(0, 25) || "New Conversation" };
+    } catch (err) {
+      console.error("[API] generateTitle error:", err);
+      return { success: false, title: "New Conversation", error: String(err) };
+    }
+  },
+
+  async updateConversationTitle(conversationId, title) {
+    try {
+      const api = await waitForApi();
+      if (api?.update_conversation_title) {
+        await api.update_conversation_title(conversationId, title);
+      }
+      const list = getStoredItem("emris_conversations", []);
+      setStoredItem(
+        "emris_conversations",
+        list.map((c) => (String(c.id) === String(conversationId) ? { ...c, title } : c))
+      );
+      return true;
+    } catch (err) {
+      console.error("[API] updateConversationTitle error:", err);
+      return false;
     }
   },
 

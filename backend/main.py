@@ -242,6 +242,83 @@ class DesktopBridge:
             print(f"[Desktop] run_agent_workflow error: {exc}")
             return {"success": False, "error": str(exc)}
 
+    def list_directory_files(self, folder_path: str):
+        try:
+            if not folder_path or not os.path.exists(folder_path):
+                return {"success": False, "error": "Directory does not exist", "tree": []}
+
+            def scan_dir(p):
+                items = []
+                try:
+                    entries = sorted(os.scandir(p), key=lambda e: (not e.is_dir(), e.name.lower()))
+                    for entry in entries:
+                        if entry.name.startswith(".") or entry.name in ("__pycache__", "node_modules", ".venv", "venv", "gemini_logs", "dist"):
+                            continue
+                        rel = os.path.relpath(entry.path, folder_path).replace("\\", "/")
+                        item = {
+                            "name": entry.name,
+                            "path": rel,
+                            "is_dir": entry.is_dir()
+                        }
+                        if entry.is_dir():
+                            item["children"] = scan_dir(entry.path)
+                        else:
+                            try:
+                                item["size"] = entry.stat().st_size
+                            except Exception:
+                                item["size"] = 0
+                        items.append(item)
+                except Exception as scan_err:
+                    print(f"[Desktop] scan_dir error: {scan_err}")
+                return items
+
+            tree = scan_dir(folder_path)
+            return {"success": True, "tree": tree, "root_name": os.path.basename(folder_path) or folder_path}
+        except Exception as exc:
+            print(f"[Desktop] list_directory_files error: {exc}")
+            return {"success": False, "error": str(exc), "tree": []}
+
+    def read_file_content(self, folder_path: str, relative_path: str):
+        try:
+            if not folder_path or not relative_path:
+                return {"success": False, "error": "Invalid arguments", "content": ""}
+            base = Path(folder_path).resolve()
+            target = (base / relative_path).resolve()
+            if not str(target).startswith(str(base)):
+                return {"success": False, "error": "Access denied outside workspace", "content": ""}
+            if not target.exists() or not target.is_file():
+                return {"success": False, "error": "File does not exist", "content": ""}
+            with open(target, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            return {"success": True, "content": content, "path": relative_path}
+        except Exception as exc:
+            print(f"[Desktop] read_file_content error: {exc}")
+            return {"success": False, "error": str(exc), "content": ""}
+
+    def generate_title(self, prompt: str):
+        try:
+            clean_prompt = (prompt or "")[:300]
+            sys_msg = "Generate a concise 2 to 4 word title for this chat topic. Return ONLY the title, no quotes, no markdown, no punctuation at end."
+            full_prompt = f"{sys_msg}\nUser prompt: {clean_prompt}"
+            res = request_generate(full_prompt, model="gemini-3.5-flash-lite")
+            if res.get("success") and res.get("data"):
+                data = res["data"]
+                title = data.get("response") or data.get("text") or data.get("content") or ""
+                title = re.sub(r'["`*#]', '', title).strip().split("\n")[0][:45]
+                if title:
+                    return {"success": True, "title": title}
+            return {"success": True, "title": clean_prompt[:25] or "New Conversation"}
+        except Exception as exc:
+            print(f"[Desktop] generate_title error: {exc}")
+            return {"success": False, "title": "New Conversation", "error": str(exc)}
+
+    def update_conversation_title(self, conversation_id: str, title: str):
+        try:
+            return db.update_conversation_title(conversation_id, title)
+        except Exception as exc:
+            print(f"[Desktop] update_conversation_title error: {exc}")
+            return False
+
 
 def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
     try:

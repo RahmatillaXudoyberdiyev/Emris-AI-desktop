@@ -269,8 +269,12 @@ def sanitize_display_response(text: str) -> str:
 
 def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite") -> dict:
     try:
+        if workspace_root:
+            try:
+                os.makedirs(workspace_root, exist_ok=True)
+            except Exception as me:
+                print(f"[Agent] Workspace mkdir error: {me}")
         effective_workspace = workspace_root if workspace_root and os.path.exists(workspace_root) else os.getcwd()
-
         ensure_emris_memory(effective_workspace)
         proj_map = build_project_map(effective_workspace)
         fn_index = build_functions_index(effective_workspace)
@@ -349,21 +353,14 @@ Respond ONLY in valid JSON matching this schema:
         tasks = parsed_plan.get("plans_md", default_tasks)
         if isinstance(tasks, str):
             tasks = default_tasks
-
         for t in tasks:
             t["model"] = "Gemini 3.5 Flash Lite"
-
         write_plans_md(effective_workspace, prompt, tasks)
-
         executed_actions = [
             {"agent": "Project Architect", "action": "write_plans", "target": "plans.md", "result": {"success": True}},
             {"agent": "File analyzer Agent", "action": "index_functions", "target": "Functions.md", "result": {"success": True}}
         ]
-
-        full_text = parsed_plan.get("response", "")
-        if not full_text:
-            full_text = raw_text or "Topshiriq bo'yicha yechim tayyorlandi."
-
+        full_text = parsed_plan.get("response", "") or raw_text or "Topshiriq bo'yicha yechim tayyorlandi."
         eng_actions = apply_engineer_targeted_tools(full_text, effective_workspace)
         cli_actions = apply_cli_and_inspector(full_text, effective_workspace)
         executed_actions.extend(eng_actions)

@@ -117,15 +117,31 @@ export default function CenterWorkspace({
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
           <div className="max-w-3xl w-full mx-auto space-y-4">
-            {messages.map((msg) => (
-              <ChatMessage
-                key={msg.id}
-                message={msg}
-                currentModelLabel={currentModelLabel}
-              />
-            ))}
+            {messages.map((msg, index) => {
+              const isLastAssistant = msg.role === "assistant" && index === messages.length - 1;
+              return (
+                <React.Fragment key={msg.id}>
+                  {isLastAssistant && agentState && (
+                    <div className="w-full pt-1">
+                      <AgentActivityCard
+                        isRunning={agentState.isRunning}
+                        currentStage={agentState.currentStage}
+                        plan={agentState.plan}
+                        actions={agentState.actions}
+                        onCancel={onCancelAgent}
+                        projectName={currentProject}
+                      />
+                    </div>
+                  )}
+                  <ChatMessage
+                    message={msg}
+                    currentModelLabel={currentModelLabel}
+                  />
+                </React.Fragment>
+              );
+            })}
 
-            {agentState && (
+            {agentState && (!messages.some((m) => m.role === "assistant") || messages[messages.length - 1]?.role === "user") && (
               <div className="w-full pt-1">
                 <AgentActivityCard
                   isRunning={agentState.isRunning}
@@ -133,6 +149,7 @@ export default function CenterWorkspace({
                   plan={agentState.plan}
                   actions={agentState.actions}
                   onCancel={onCancelAgent}
+                  projectName={currentProject}
                 />
               </div>
             )}
