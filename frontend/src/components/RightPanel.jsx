@@ -47,6 +47,11 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
     try {
       if (activeProject && activeProject.path) {
         loadDirectory(activeProject.path);
+      } else if (activeProject?.name && activeProject.name !== "No Project") {
+        desktopApi.getProjects().then((pList) => {
+          const found = (pList || []).find((p) => p.name === activeProject.name);
+          if (found && found.path) loadDirectory(found.path);
+        }).catch((e) => console.error("[RightPanel] Fetch project fallback error:", e));
       } else {
         setFileTree([]);
         setRootName("");

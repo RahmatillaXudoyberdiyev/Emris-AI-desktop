@@ -1,77 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import AgentActivityCard from "./AgentActivityCard";
+import MarkdownRenderer from "./MarkdownRenderer";
 
 export default function ChatMessage({ message, currentModelLabel }) {
-  const [copiedIndex, setCopiedIndex] = useState(null);
-
-  const handleCopyCode = async (codeText, index) => {
-    try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(codeText);
-        setCopiedIndex(index);
-        setTimeout(() => setCopiedIndex(null), 1800);
-      }
-    } catch (err) {
-      console.error("[ChatMessage] Copy error:", err);
-    }
-  };
-
-  const renderContent = (content) => {
-    try {
-      if (!content) return null;
-      const parts = content.split(/(```[\s\S]*?```)/g);
-
-      return parts.map((part, idx) => {
-        if (part.startsWith("```") && part.endsWith("```")) {
-          const lines = part.slice(3, -3).trim().split("\n");
-          let language = "code";
-          let codeBody = "";
-
-          if (lines.length > 0 && lines[0].trim() && !lines[0].includes(" ") && lines[0].length < 20) {
-            language = lines[0].trim();
-            codeBody = lines.slice(1).join("\n");
-          } else {
-            codeBody = lines.join("\n");
-          }
-
-          const isCopied = copiedIndex === idx;
-
-          return (
-            <div
-              key={idx}
-              className="my-3 rounded-xl overflow-hidden border border-[#27272a] bg-[#09090b] text-[#f4f4f5]"
-            >
-              <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#18181b] border-b border-[#27272a] text-[11px] text-[#a1a1aa] font-mono">
-                <span className="uppercase tracking-wider font-medium">{language}</span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyCode(codeBody, idx)}
-                  className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-[#27272a] text-[#a1a1aa] hover:text-[#f4f4f5] transition-colors cursor-pointer"
-                  title="Copy code"
-                >
-                  <i className={`fa-solid ${isCopied ? "fa-check text-[#a1a1aa]" : "fa-copy"} text-[10px]`}></i>
-                  <span>{isCopied ? "Copied" : "Copy"}</span>
-                </button>
-              </div>
-              <pre className="p-3.5 overflow-x-auto font-mono text-xs leading-relaxed text-[#e4e4e7] selection:bg-[#27272a]">
-                <code>{codeBody}</code>
-              </pre>
-            </div>
-          );
-        }
-
-        return (
-          <div key={idx} className="whitespace-pre-wrap leading-relaxed space-y-1">
-            {part}
-          </div>
-        );
-      });
-    } catch (err) {
-      console.error("[ChatMessage] Render content error:", err);
-      return <div className="whitespace-pre-wrap">{content}</div>;
-    }
-  };
-
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -107,7 +38,7 @@ export default function ChatMessage({ message, currentModelLabel }) {
       {workflow && (
         <AgentActivityCard
           isRunning={false}
-          currentStage="Barcha vazifalar muvaffaqiyatli bajarildi ✓"
+          currentStage="All workflow phases completed ✓"
           plan={workflow.plan || { steps: workflow.steps }}
           actions={workflow.actions || []}
         />
@@ -126,8 +57,8 @@ export default function ChatMessage({ message, currentModelLabel }) {
               </span>
             </div>
           </div>
-          <div className="text-[13px] text-[#e4e4e7] space-y-2">
-            {renderContent(rawContent)}
+          <div className="text-[13px] text-[#e4e4e7]">
+            <MarkdownRenderer content={rawContent} />
           </div>
         </div>
       </div>

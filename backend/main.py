@@ -21,7 +21,8 @@ try:
         get_persistent_device_id,
         fetch_remote_keys
     )
-    from backend.agent import run_hierarchical_cycle
+    from backend.agent import run_hierarchical_cycle, generate_conversation_title
+    from backend.server import start_local_api_server
 except ImportError:
     from database import db
     from terminal import execute_shell_command
@@ -32,7 +33,8 @@ except ImportError:
         get_persistent_device_id,
         fetch_remote_keys
     )
-    from agent import run_hierarchical_cycle
+    from agent import run_hierarchical_cycle, generate_conversation_title
+    from server import start_local_api_server
 
 if sys.stdout is None:
     sys.stdout = io.StringIO()
@@ -242,6 +244,13 @@ class DesktopBridge:
             print(f"[Desktop] run_agent_workflow error: {exc}")
             return {"success": False, "error": str(exc)}
 
+    def generate_title(self, prompt: str):
+        try:
+            return generate_conversation_title(prompt)
+        except Exception as exc:
+            print(f"[Desktop] generate_title error: {exc}")
+            return {"success": False, "title": "New Conversation", "error": str(exc)}
+
     def list_directory_files(self, folder_path: str):
         try:
             if not folder_path or not os.path.exists(folder_path):
@@ -367,6 +376,7 @@ def launch_desktop_window():
         print(f"[Desktop] Launching Emris AI Desktop window: {target_url}")
 
         use_http_server = not target_url.startswith("http://") and not target_url.startswith("https://")
+        start_local_api_server(8765)
         bridge_api = DesktopBridge()
 
         window = webview.create_window(

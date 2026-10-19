@@ -145,8 +145,8 @@ export default function Header({
   };
 
   const projectDisplay = currentProject && currentProject !== "No Project"
-    ? `Project Architect — ${currentProject}`
-    : "Project Architect";
+    ? currentProject
+    : t("workspace.no_project");
 
   return (
     <header className="h-14 border-b border-[#222226] bg-[#131316] px-5 flex items-center justify-between flex-shrink-0 z-30 select-none">

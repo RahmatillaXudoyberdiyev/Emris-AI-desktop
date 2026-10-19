@@ -15,7 +15,9 @@ export default function CenterWorkspace({
   onCancelAgent,
   onSelectProject,
   onOpenFolderModal,
-  onSubmitPrompt
+  onSubmitPrompt,
+  onApproveCommand,
+  onRejectCommand
 }) {
   const { t } = useTranslation();
   const [promptText, setPromptText] = useState("");
@@ -93,28 +95,6 @@ export default function CenterWorkspace({
   if (messages.length > 0 || agentState) {
     return (
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#131314] relative z-0">
-        <div className="flex items-center justify-between px-6 py-2.5 border-b border-[#222226] bg-[#161618] text-xs text-[#a1a1aa] flex-shrink-0">
-          <div className="flex items-center gap-2 truncate">
-            <span className="font-medium text-[#e4e4e7] truncate">
-              {activeConversation?.title || t("workspace.chat_mode")}
-            </span>
-            <span className="text-[#52525b]">•</span>
-            <span className="px-2 py-0.5 rounded-md bg-[#222226] text-[#a1a1aa] text-[11px] font-mono">
-              {currentProject}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenFolderModal}
-              className="px-2.5 py-1 rounded-lg bg-[#222226] hover:bg-[#27272a] text-[#d4d4d8] text-[11px] transition-colors cursor-pointer"
-            >
-              <i className="fa-solid fa-folder-open text-[10px] mr-1.5 text-[#a1a1aa]"></i>
-              <span>{t("workspace.choose_folder")}</span>
-            </button>
-          </div>
-        </div>
-
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
           <div className="max-w-3xl w-full mx-auto space-y-4">
             {messages.map((msg, index) => {
@@ -130,6 +110,8 @@ export default function CenterWorkspace({
                         actions={agentState.actions}
                         onCancel={onCancelAgent}
                         projectName={currentProject}
+                        onApproveCommand={onApproveCommand}
+                        onRejectCommand={onRejectCommand}
                       />
                     </div>
                   )}
@@ -150,6 +132,8 @@ export default function CenterWorkspace({
                   actions={agentState.actions}
                   onCancel={onCancelAgent}
                   projectName={currentProject}
+                  onApproveCommand={onApproveCommand}
+                  onRejectCommand={onRejectCommand}
                 />
               </div>
             )}

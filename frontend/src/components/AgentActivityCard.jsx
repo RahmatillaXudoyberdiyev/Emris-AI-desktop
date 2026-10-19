@@ -41,7 +41,16 @@ function AnimatedAgentOutput({ text, animate }) {
   );
 }
 
-export default function AgentActivityCard({ isRunning, currentStage, plan, actions, onCancel, projectName }) {
+export default function AgentActivityCard({
+  isRunning,
+  currentStage,
+  plan,
+  actions,
+  onCancel,
+  projectName,
+  onApproveCommand,
+  onRejectCommand
+}) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -64,7 +73,7 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
   }
 
   const steps = plan?.steps || [];
-  const activeAgent = steps.find((s) => s.status === "running")?.agent || "Project Architect";
+  const activeAgent = steps.find((s) => s.status === "running")?.agent || "Chief Architect";
 
   return (
     <div className="w-full rounded-2xl border border-[#242428] bg-[#141416] text-xs text-[#f8fafc] overflow-hidden shadow-xl mb-4 select-none">
@@ -86,7 +95,7 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
 
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#202026] border border-[#2c2c34] text-[11px] text-[#94a3b8]">
             <i className="fa-solid fa-magnifying-glass text-[9px]"></i>
-            <span className="truncate max-w-[200px]">{projectName ? `Project Architect — ${projectName}` : "Project Architect"}</span>
+            <span className="truncate max-w-[200px]">{projectName || "Active Workspace"}</span>
             <i className="fa-solid fa-chevron-down text-[8px] ml-0.5"></i>
           </div>
         </div>
@@ -112,12 +121,12 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-[#f8fafc]">{activeAgent}</span>
+                    <span className="font-semibold text-xs text-[#f8fafc]">{isRunning ? (activeAgent || "Autonomous Team") : "Autonomous Agent Team"}</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#222228] text-[#94a3b8] border border-[#2e2e36] font-mono">
                       Gemini 3.5 Flash Lite
                     </span>
                   </div>
-                  <p className="text-[11px] text-[#94a3b8] mt-0.5">Designs, plans and builds your project step by step.</p>
+                  <p className="text-[11px] text-[#94a3b8] mt-0.5">Orchestrates architecture, code synthesis, and environment tasks.</p>
                 </div>
               </div>
 
@@ -140,12 +149,12 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
               {steps.map((st, idx) => {
                 const isRunningStep = st.status === "running";
                 const isDoneStep = st.status === "done";
-                const isPending = !isRunningStep && !isDoneStep;
+                const cmdInfo = st.pending_command;
 
                 return (
                   <div
                     key={st.id || idx}
-                    className={`flex items-start justify-between p-2.5 rounded-xl border transition-all ${
+                    className={`flex flex-col p-3 rounded-xl border transition-all ${
                       isRunningStep
                         ? "bg-[#1c1c22] border-[#3b82f6]/40 shadow-sm"
                         : isDoneStep
@@ -153,48 +162,102 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
                         : "bg-[#141416]/40 border-[#1f1f23] opacity-60"
                     }`}
                   >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="mt-0.5 flex-shrink-0">
-                        {isDoneStep ? (
-                          <div className="w-5 h-5 rounded-full bg-[#10b981]/20 border border-[#10b981]/50 flex items-center justify-center text-[#10b981]">
-                            <i className="fa-solid fa-check text-[10px]"></i>
-                          </div>
-                        ) : isRunningStep ? (
-                          <div className="w-5 h-5 rounded-full border-2 border-[#3b82f6] border-t-transparent animate-spin"></div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full border border-[#3f3f46] flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#3f3f46]"></div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-medium truncate ${isDoneStep || isRunningStep ? "text-[#f8fafc]" : "text-[#94a3b8]"}`}>
-                            {st.agent ? `${st.agent} • ${st.description}` : st.description}
-                          </span>
+                    <div className="flex items-start justify-between w-full">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="mt-0.5 flex-shrink-0">
+                          {isDoneStep ? (
+                            <div className="w-5 h-5 rounded-full bg-[#10b981]/20 border border-[#10b981]/50 flex items-center justify-center text-[#10b981]">
+                              <i className="fa-solid fa-check text-[10px]"></i>
+                            </div>
+                          ) : isRunningStep ? (
+                            <div className="w-5 h-5 rounded-full border-2 border-[#3b82f6] border-t-transparent animate-spin"></div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-full border border-[#3f3f46] flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 rounded-full bg-[#3f3f46]"></div>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-[11px] text-[#64748b] mt-0.5 truncate">
-                          {isDoneStep ? "Topshiriq bajarildi va tekshirildi" : isRunningStep ? "Jarayon faol ishlamoqda..." : "Kutilmoqda..."}
-                        </p>
 
-                        {(isRunningStep || isDoneStep) && st.output && (
-                          <div className="mt-2 p-2 rounded-lg bg-[#0f0f12] border border-[#222226]">
-                            <AnimatedAgentOutput text={st.output} animate={isRunningStep} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold truncate ${isDoneStep || isRunningStep ? "text-[#f8fafc]" : "text-[#94a3b8]"}`}>
+                              {st.title || st.description}
+                            </span>
+                            {st.agent && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#202026] text-[#94a3b8] font-mono border border-[#2c2c34] flex-shrink-0">
+                                {st.agent}
+                              </span>
+                            )}
                           </div>
+                          <p className="text-[11px] text-[#94a3b8] mt-0.5 truncate">
+                            {st.subtitle || st.description}
+                          </p>
+
+                          {(isRunningStep || isDoneStep) && st.output && (
+                            <div className="mt-2 p-2 rounded-lg bg-[#0f0f12] border border-[#222226]">
+                              <AnimatedAgentOutput text={st.output} animate={isRunningStep} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex-shrink-0 ml-3 text-[11px] font-mono text-[#64748b]">
+                        {isDoneStep ? (
+                          <span>{`${10 + (idx * 12)}s`}</span>
+                        ) : isRunningStep ? (
+                          <span className="text-[#3b82f6] font-medium">{`${elapsedSeconds}s`}</span>
+                        ) : (
+                          <span>—</span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex-shrink-0 ml-3 text-[11px] font-mono text-[#64748b]">
-                      {isDoneStep ? (
-                        <span>{`${12 + (idx * 16)}s`}</span>
-                      ) : isRunningStep ? (
-                        <span className="text-[#3b82f6] font-medium">{`${elapsedSeconds}s`}</span>
-                      ) : (
-                        <span>—</span>
-                      )}
-                    </div>
+                    {cmdInfo && (
+                      <div className="mt-3 p-3 rounded-xl bg-[#0a0a0c] border border-[#26262b] shadow-inner space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="flex items-center gap-1.5 text-[#eab308]">
+                            <i className="fa-solid fa-shield-halved text-[9px]"></i>
+                            <span>Terminal Command Approval</span>
+                          </span>
+                          {cmdInfo.display_cwd && (
+                            <span className="px-1.5 py-0.5 rounded bg-[#18181c] border border-[#27272a] text-[#a1a1aa]">
+                              cwd: {cmdInfo.display_cwd}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-[#141417] border border-[#222226] font-mono text-[11px] text-[#38bdf8] select-text">
+                          <span className="text-[#64748b]">$</span>
+                          <span className="font-semibold">{cmdInfo.command}</span>
+                        </div>
+
+                        {cmdInfo.execution_output && (
+                          <div className="p-2.5 rounded-lg bg-[#050506] border border-[#202024] font-mono text-[11px] text-[#a1a1aa] whitespace-pre-wrap max-h-40 overflow-y-auto custom-scrollbar">
+                            {cmdInfo.execution_output}
+                          </div>
+                        )}
+
+                        {cmdInfo.pending_approval && onApproveCommand && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => onApproveCommand(cmdInfo, st.id)}
+                              className="px-3 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer"
+                            >
+                              <i className="fa-solid fa-play text-[9px]"></i>
+                              <span>Approve & Run</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onRejectCommand && onRejectCommand(cmdInfo, st.id)}
+                              className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-[#cbd5e1] text-xs font-medium transition-colors cursor-pointer"
+                            >
+                              <span>Skip</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -211,9 +274,11 @@ export default function AgentActivityCard({ isRunning, currentStage, plan, actio
                   <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#18181c] border border-[#242428] text-[11px]">
                     <div className="flex items-center gap-2 font-mono truncate mr-2">
                       <span className="text-[10px] text-[#3b82f6]">{act.agent || act.action}:</span>
-                      <span className="text-[#cbd5e1] truncate">{act.target}</span>
+                      <span className="text-[#cbd5e1] truncate">{act.command || act.target}</span>
                     </div>
-                    <span className="text-[10px] text-[#10b981] font-mono flex-shrink-0">OK</span>
+                    <span className="text-[10px] text-[#10b981] font-mono flex-shrink-0">
+                      {act.pending_approval ? "APPROVAL" : "OK"}
+                    </span>
                   </div>
                 ))}
               </div>

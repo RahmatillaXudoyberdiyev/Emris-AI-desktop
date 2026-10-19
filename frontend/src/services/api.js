@@ -1,3 +1,5 @@
+const LOCAL_HTTP_BASE = "http://127.0.0.1:8765";
+
 const waitForApi = () => {
   try {
     if (window.pywebview?.api) return Promise.resolve(window.pywebview.api);
@@ -11,7 +13,7 @@ const waitForApi = () => {
         }
       };
       window.addEventListener("pywebviewready", onReady);
-      setTimeout(onReady, 800);
+      setTimeout(onReady, 500);
     });
   } catch (err) {
     console.error("[API] Error resolving pywebview api:", err);
@@ -37,6 +39,26 @@ const setStoredItem = (key, value) => {
   }
 };
 
+const fetchLocalApi = async (endpoint, options = {}) => {
+  try {
+    const url = `${LOCAL_HTTP_BASE}${endpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    return await response.json();
+  } catch (err) {
+    console.warn(`[API] fetchLocalApi notice for ${endpoint}:`, err.message);
+    return null;
+  }
+};
+
 export const desktopApi = {
   async openExternal(url) {
     try {
@@ -56,7 +78,18 @@ export const desktopApi = {
     try {
       const api = await waitForApi();
       if (api?.choose_folder) {
-        return await api.choose_folder();
+        const folder = await api.choose_folder();
+        if (folder) return folder;
+      }
+      if (window.showDirectoryPicker) {
+        try {
+          const dirHandle = await window.showDirectoryPicker();
+          if (dirHandle?.name) {
+            return `D:\\${dirHandle.name}`;
+          }
+        } catch (pickerErr) {
+          console.warn("[API] Directory picker dismissed:", pickerErr);
+        }
       }
       return null;
     } catch (err) {
@@ -75,6 +108,11 @@ export const desktopApi = {
           return result;
         }
       }
+      const httpRes = await fetchLocalApi("/api/projects");
+      if (Array.isArray(httpRes) && httpRes.length > 0) {
+        setStoredItem("emris_projects", httpRes);
+        return httpRes;
+      }
       return getStoredItem("emris_projects", []);
     } catch (err) {
       console.error("[API] getProjects error:", err);
@@ -88,29 +126,29 @@ export const desktopApi = {
       const cleanPath = path ? path.trim() : "";
       const api = await waitForApi();
       if (api?.create_project) {
-        const res = await api.create_project(cleanName, cleanPath);
-        if (res && !res.error) {
+        const result = await api.create_project(cleanName, cleanPath);
+        if (result) {
           const list = getStoredItem("emris_projects", []);
-          setStoredItem("emris_projects", [res, ...list.filter((p) => p.id !== res.id)]);
-          return res;
+          setStoredItem("emris_projects", [result, ...list.filter((p) => p.id !== result.id)]);
+          return result;
         }
-        if (res?.error) return res;
       }
-      const list = getStoredItem("emris_projects", []);
-      const isDup = list.some(
-        (p) =>
-          p.name.toLowerCase() === cleanName.toLowerCase() ||
-          (cleanPath && p.path && p.path.toLowerCase() === cleanPath.toLowerCase())
-      );
-      if (isDup) {
-        return { error: "duplicate", message: "Project already exists" };
+      const httpRes = await fetchLocalApi("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({ name: cleanName, path: cleanPath })
+      });
+      if (httpRes) {
+        const list = getStoredItem("emris_projects", []);
+        setStoredItem("emris_projects", [httpRes, ...list.filter((p) => p.id !== httpRes.id)]);
+        return httpRes;
       }
       const fallback = {
-        id: String(Date.now()),
+        id: "proj_" + Date.now().toString(36),
         name: cleanName,
         path: cleanPath,
         created_at: new Date().toISOString()
       };
+      const list = getStoredItem("emris_projects", []);
       setStoredItem("emris_projects", [fallback, ...list]);
       return fallback;
     } catch (err) {
@@ -144,6 +182,12 @@ export const desktopApi = {
           return result;
         }
       }
+      const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+      const httpRes = await fetchLocalApi(`/api/conversations${query}`);
+      if (Array.isArray(httpRes) && httpRes.length > 0) {
+        if (!projectId) setStoredItem("emris_conversations", httpRes);
+        return httpRes;
+      }
       const stored = getStoredItem("emris_conversations", []);
       if (projectId) {
         return stored.filter((c) => String(c.project_id) === String(projectId));
@@ -151,31 +195,38 @@ export const desktopApi = {
       return stored;
     } catch (err) {
       console.error("[API] getConversations error:", err);
-      return getStoredItem("emris_conversations", []);
+      return [];
     }
   },
 
   async createConversation(title, projectId = null, model = "gemini-3.5-flash-lite") {
     try {
-      const cleanTitle = title.trim();
       const api = await waitForApi();
       if (api?.create_conversation) {
-        const res = await api.create_conversation(cleanTitle, projectId, model);
-        if (res && res.id) {
+        const result = await api.create_conversation(title, projectId, model);
+        if (result) {
           const list = getStoredItem("emris_conversations", []);
-          setStoredItem("emris_conversations", [res, ...list.filter((c) => c.id !== res.id)]);
-          return res;
+          setStoredItem("emris_conversations", [result, ...list.filter((c) => c.id !== result.id)]);
+          return result;
         }
       }
-      const list = getStoredItem("emris_conversations", []);
+      const httpRes = await fetchLocalApi("/api/conversations", {
+        method: "POST",
+        body: JSON.stringify({ title, project_id: projectId, model })
+      });
+      if (httpRes) {
+        const list = getStoredItem("emris_conversations", []);
+        setStoredItem("emris_conversations", [httpRes, ...list.filter((c) => c.id !== httpRes.id)]);
+        return httpRes;
+      }
       const fallback = {
-        id: String(Date.now()),
+        id: "conv_" + Date.now().toString(36),
+        title: title || "New Conversation",
         project_id: projectId,
-        title: cleanTitle,
         model,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: new Date().toISOString()
       };
+      const list = getStoredItem("emris_conversations", []);
       setStoredItem("emris_conversations", [fallback, ...list]);
       return fallback;
     } catch (err) {
@@ -210,6 +261,11 @@ export const desktopApi = {
           return result;
         }
       }
+      const httpRes = await fetchLocalApi(`/api/messages?conversation_id=${encodeURIComponent(conversationId)}`);
+      if (Array.isArray(httpRes) && httpRes.length > 0) {
+        setStoredItem(`emris_messages_${conversationId}`, httpRes);
+        return httpRes;
+      }
       return getStoredItem(`emris_messages_${conversationId}`, []);
     } catch (err) {
       console.error("[API] getMessages error:", err);
@@ -224,6 +280,12 @@ export const desktopApi = {
       let createdMsg = null;
       if (api?.add_message) {
         createdMsg = await api.add_message(conversationId, role, content);
+      }
+      if (!createdMsg) {
+        createdMsg = await fetchLocalApi("/api/messages", {
+          method: "POST",
+          body: JSON.stringify({ conversation_id: conversationId, role, content })
+        });
       }
       if (!createdMsg) {
         createdMsg = {
@@ -249,7 +311,12 @@ export const desktopApi = {
       if (api?.run_command) {
         return await api.run_command(command, cwd);
       }
-      return { success: false, stdout: "", stderr: "Desktop bridge unavailable", exit_code: -1 };
+      const httpRes = await fetchLocalApi("/api/run_command", {
+        method: "POST",
+        body: JSON.stringify({ command, cwd })
+      });
+      if (httpRes) return httpRes;
+      return { success: false, stdout: "", stderr: "Backend bridge unavailable", exit_code: -1 };
     } catch (err) {
       console.error("[API] runCommand error:", err);
       return { success: false, stdout: "", stderr: String(err), exit_code: -1 };
@@ -275,7 +342,8 @@ export const desktopApi = {
       if (api?.check_gateway_health) {
         return await api.check_gateway_health();
       }
-      return false;
+      const httpRes = await fetchLocalApi("/api/health");
+      return !!httpRes;
     } catch (err) {
       console.error("[API] checkGatewayHealth error:", err);
       return false;
@@ -300,17 +368,20 @@ export const desktopApi = {
       const api = await waitForApi();
       if (api?.run_agent_workflow) {
         const result = await api.run_agent_workflow(prompt, workspaceRoot, model);
-        if (result && (result.success || result.response)) return result;
+        if (result && (result.success || result.steps?.length > 0)) {
+          return result;
+        }
       }
+      const httpRes = await fetchLocalApi("/api/run_workflow", {
+        method: "POST",
+        body: JSON.stringify({ prompt, workspace_root: workspaceRoot, model })
+      });
+      if (httpRes) return httpRes;
       return {
-        success: true,
-        chief_thought: "Project Architect reja shakllantirdi.",
-        steps: [
-          { id: 1, agent: "Project Architect", model: "Gemini 3.5 Flash Lite", description: "Loyiha arxitekturasi", output: "Reja tuzildi" },
-          { id: 2, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", description: "Kod sintezi", output: "Kod yozildi" }
-        ],
-        actions: [],
-        response: "Topshiriq bo'yicha yechim tayyorlandi."
+        success: false,
+        error: "Backend agent workflow unavailable",
+        steps: [],
+        actions: []
       };
     } catch (err) {
       console.error("[API] runAgentWorkflow error:", err);
@@ -322,8 +393,12 @@ export const desktopApi = {
     try {
       const api = await waitForApi();
       if (api?.list_directory_files) {
-        return await api.list_directory_files(folderPath);
+        const result = await api.list_directory_files(folderPath);
+        if (result?.success) return result;
       }
+      const query = `?path=${encodeURIComponent(folderPath || "")}`;
+      const httpRes = await fetchLocalApi(`/api/list_files${query}`);
+      if (httpRes) return httpRes;
       return { success: false, tree: [] };
     } catch (err) {
       console.error("[API] listDirectoryFiles error:", err);
@@ -335,8 +410,12 @@ export const desktopApi = {
     try {
       const api = await waitForApi();
       if (api?.read_file_content) {
-        return await api.read_file_content(folderPath, relativePath);
+        const result = await api.read_file_content(folderPath, relativePath);
+        if (result?.success) return result;
       }
+      const query = `?path=${encodeURIComponent(folderPath || "")}&file=${encodeURIComponent(relativePath || "")}`;
+      const httpRes = await fetchLocalApi(`/api/read_file${query}`);
+      if (httpRes) return httpRes;
       return { success: false, content: "" };
     } catch (err) {
       console.error("[API] readFileContent error:", err);
@@ -348,12 +427,19 @@ export const desktopApi = {
     try {
       const api = await waitForApi();
       if (api?.generate_title) {
-        return await api.generate_title(prompt);
+        const res = await api.generate_title(prompt);
+        if (res?.success) return res;
       }
-      return { success: true, title: (prompt || "").slice(0, 25) || "New Conversation" };
+      const httpRes = await fetchLocalApi("/api/generate_title", {
+        method: "POST",
+        body: JSON.stringify({ prompt })
+      });
+      if (httpRes?.success) return httpRes;
+      const clean = (prompt || "").trim().split(/\s+/).slice(0, 5).join(" ");
+      return { success: true, title: clean || "New Conversation" };
     } catch (err) {
       console.error("[API] generateTitle error:", err);
-      return { success: false, title: "New Conversation", error: String(err) };
+      return { success: true, title: "New Conversation", error: String(err) };
     }
   },
 
@@ -363,6 +449,10 @@ export const desktopApi = {
       if (api?.update_conversation_title) {
         await api.update_conversation_title(conversationId, title);
       }
+      await fetchLocalApi("/api/update_title", {
+        method: "POST",
+        body: JSON.stringify({ conversation_id: conversationId, title })
+      });
       const list = getStoredItem("emris_conversations", []);
       setStoredItem(
         "emris_conversations",

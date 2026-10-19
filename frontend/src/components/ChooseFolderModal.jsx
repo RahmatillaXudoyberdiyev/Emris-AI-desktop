@@ -51,8 +51,12 @@ export default function ChooseFolderModal({ isOpen, onClose, onSelectFolder, pro
 
   const handleConfirm = () => {
     try {
+      if (!folderPath.trim()) {
+        setError("Iltimos, loyiha papkasini tanlang");
+        return;
+      }
       const finalName = projectName.trim() || "New Project";
-      const finalPath = folderPath.trim() || "D:\\Projects\\" + finalName;
+      const finalPath = folderPath.trim();
 
       const isDuplicate = projects.some((p) => {
         const nameMatch = p.name.trim().toLowerCase() === finalName.toLowerCase();

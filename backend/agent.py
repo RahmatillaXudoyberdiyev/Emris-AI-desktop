@@ -10,261 +10,130 @@ if str(project_root) not in sys.path:
 
 from backend.terminal import execute_shell_command
 from backend.gateway import request_generate
-
-
-def is_safe_path(target_path: str, workspace_root: str) -> bool:
-    try:
-        if not workspace_root:
-            return True
-        root = Path(workspace_root).resolve()
-        target = Path(target_path).resolve()
-        return root == target or root in target.parents
-    except Exception as exc:
-        print(f"[Agent] Safe path check error: {exc}")
-        return False
-
-
-def ensure_emris_memory(workspace_root: str):
-    try:
-        emris_md_path = Path(workspace_root) / "Emris.md"
-        if not emris_md_path.exists():
-            content = "# Emris AI System Instructions\n1. Maintain modular code.\n2. Work in sandbox.\n3. Wrap operations in defensive try-except."
-            with open(emris_md_path, "w", encoding="utf-8") as f:
-                f.write(content)
-    except Exception as exc:
-        print(f"[Agent] ensure_emris_memory error: {exc}")
-
-
-def build_project_map(workspace_root: str) -> str:
-    try:
-        lines = ["# Project Map (`Project.map.md`)", f"Root: {workspace_root}", ""]
-        ignore_dirs = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
-        root_path = Path(workspace_root)
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.startswith(".")]
-            rel_dir = os.path.relpath(dirpath, root_path)
-            depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
-            indent = "  " * depth
-            if rel_dir != ".":
-                lines.append(f"{indent}- 📁 {os.path.basename(dirpath)}/")
-            for fname in sorted(filenames):
-                if fname not in ignore_dirs and not fname.startswith("."):
-                    lines.append(f"{indent}  - 📄 {fname}")
-        content = "\n".join(lines[:120])
-        with open(root_path / "Project.map.md", "w", encoding="utf-8") as f:
-            f.write(content)
-        return content
-    except Exception as exc:
-        print(f"[Agent] build_project_map error: {exc}")
-        return ""
-
-
-def build_functions_index(workspace_root: str) -> str:
-    try:
-        root_path = Path(workspace_root)
-        index_lines = ["# Functions Index (`Functions.md`)", ""]
-        ignore_dirs = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
-        code_exts = {".py", ".js", ".jsx", ".ts", ".tsx"}
-
-        py_regex = re.compile(r"^\s*(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\((.*?)\):")
-        js_regex = re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_]+)\s*\((.*?)\)")
-        arrow_regex = re.compile(r"^\s*(?:export\s+)?(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s*)?\((.*?)\)\s*=>")
-
-        count = 0
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.startswith(".")]
-            for fname in filenames:
-                ext = os.path.splitext(fname)[1].lower()
-                if ext not in code_exts:
-                    continue
-
-                full_path = Path(dirpath) / fname
-                rel_path = os.path.relpath(full_path, root_path).replace("\\", "/")
-
-                try:
-                    with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                        for line in f:
-                            py_match = py_regex.search(line)
-                            js_match = js_regex.search(line)
-                            arrow_match = arrow_regex.search(line)
-
-                            if py_match:
-                                sig = f"def {py_match.group(1)}({py_match.group(2).strip()})"
-                                index_lines.append(f"- `{sig}` -> `{rel_path}` (Structural match)")
-                                count += 1
-                            elif js_match:
-                                sig = f"function {js_match.group(1)}({js_match.group(2).strip()})"
-                                index_lines.append(f"- `{sig}` -> `{rel_path}` (Structural match)")
-                                count += 1
-                            elif arrow_match:
-                                sig = f"const {arrow_match.group(1)} = ({arrow_match.group(2).strip()}) =>"
-                                index_lines.append(f"- `{sig}` -> `{rel_path}` (Structural match)")
-                                count += 1
-
-                            if count >= 80:
-                                break
-                except Exception as read_err:
-                    print(f"[Agent] Scan error on {fname}: {read_err}")
-
-        content = "\n".join(index_lines)
-        fn_path = root_path / "Functions.md"
-        with open(fn_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return content
-    except Exception as exc:
-        print(f"[Agent] build_functions_index error: {exc}")
-        return ""
-
-
-def trigger_file_analyzer_hook(workspace_root: str):
-    try:
-        build_project_map(workspace_root)
-        build_functions_index(workspace_root)
-    except Exception as exc:
-        print(f"[Agent] trigger_file_analyzer_hook error: {exc}")
-
-
-def write_plans_md(workspace_root: str, goal: str, tasks: list) -> str:
-    try:
-        root_path = Path(workspace_root)
-        lines = [f"# Project Execution Plan (`plans.md`)\n**Goal**: {goal}\n\n## Task Breakdown"]
-        for idx, task in enumerate(tasks, start=1):
-            lines.append(f"{idx}. Task {idx}: {task.get('description', 'Execute')} — **{task.get('agent', 'Engineer Agent')}**")
-        content = "\n".join(lines)
-        with open(root_path / "plans.md", "w", encoding="utf-8") as f:
-            f.write(content)
-        return content
-    except Exception as exc:
-        print(f"[Agent] write_plans_md error: {exc}")
-        return ""
-
-
-def tool_create_file(path: str, content: str, workspace_root: str) -> dict:
-    try:
-        full_path = Path(workspace_root) / path
-        if not is_safe_path(str(full_path), workspace_root):
-            return {"success": False, "error": "Access denied: outside sandbox"}
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        trigger_file_analyzer_hook(workspace_root)
-        return {"success": True, "path": path, "bytes": len(content)}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
-
-
-def tool_replace_block(path: str, search_str: str, replace_str: str, workspace_root: str) -> dict:
-    try:
-        full_path = Path(workspace_root) / path
-        if not is_safe_path(str(full_path), workspace_root):
-            return {"success": False, "error": "Access denied: outside sandbox"}
-        if not full_path.exists():
-            return {"success": False, "error": "File does not exist"}
-
-        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-            data = f.read()
-
-        if search_str not in data:
-            return {"success": False, "error": "search_str not found in target file"}
-
-        updated = data.replace(search_str, replace_str, 1)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(updated)
-        trigger_file_analyzer_hook(workspace_root)
-        return {"success": True, "path": path, "replaced": True}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
-
-
-def tool_append_file(path: str, content: str, workspace_root: str) -> dict:
-    try:
-        full_path = Path(workspace_root) / path
-        if not is_safe_path(str(full_path), workspace_root):
-            return {"success": False, "error": "Access denied: outside sandbox"}
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(full_path, "a", encoding="utf-8") as f:
-            f.write(content)
-        trigger_file_analyzer_hook(workspace_root)
-        return {"success": True, "path": path, "bytes_appended": len(content)}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
+from backend.workspace_tools import (
+    ensure_emris_memory,
+    build_project_map,
+    build_functions_index,
+    trigger_file_analyzer_hook,
+    write_plans_md,
+    tool_create_file,
+    tool_replace_block
+)
 
 
 def apply_engineer_targeted_tools(text: str, workspace_root: str) -> list:
     actions = []
     try:
-        create_pattern = re.compile(r"<create_file\s+path=['\"]([^'\"]+)['\"]>([\s\S]*?)</create_file>", re.IGNORECASE)
-        for match in create_pattern.finditer(text):
-            p = match.group(1).strip()
-            c = match.group(2)
-            res = tool_create_file(p, c, workspace_root)
-            actions.append({"agent": "Engineer Agent", "action": "create_file", "target": p, "result": res})
+        patterns = [
+            re.compile(r"<create_file\s+(?:path|src)=['\"]([^'\"]+)['\"]>([\s\S]*?)</create_file>", re.IGNORECASE),
+            re.compile(r"<write\s+(?:src|path)=['\"]([^'\"]+)['\"]>([\s\S]*?)</write>", re.IGNORECASE),
+            re.compile(r"<file\s+(?:path|src)=['\"]([^'\"]+)['\"]>([\s\S]*?)</file>", re.IGNORECASE)
+        ]
+        seen_paths = set()
+        for pat in patterns:
+            for match in pat.finditer(text):
+                p = match.group(1).strip()
+                if p in seen_paths:
+                    continue
+                seen_paths.add(p)
+                res = tool_create_file(p, match.group(2).strip(), workspace_root)
+                actions.append({"agent": "Engineer Agent", "action": "create_file", "target": p, "result": res})
 
-        replace_pattern = re.compile(
+        rep_pat = re.compile(
             r"<replace_block\s+path=['\"]([^'\"]+)['\"]>[\s\S]*?<search>([\s\S]*?)</search>[\s\S]*?<replace>([\s\S]*?)</replace>[\s\S]*?</replace_block>",
             re.IGNORECASE
         )
-        for match in replace_pattern.finditer(text):
+        for match in rep_pat.finditer(text):
             p = match.group(1).strip()
-            s = match.group(2)
-            r = match.group(3)
-            res = tool_replace_block(p, s, r, workspace_root)
+            res = tool_replace_block(p, match.group(2), match.group(3), workspace_root)
             actions.append({"agent": "Engineer Agent", "action": "replace_block", "target": p, "result": res})
-
-        append_pattern = re.compile(r"<append_file\s+path=['\"]([^'\"]+)['\"]>([\s\S]*?)</append_file>", re.IGNORECASE)
-        for match in append_pattern.finditer(text):
-            p = match.group(1).strip()
-            res = tool_append_file(p, match.group(2), workspace_root)
-            actions.append({"agent": "Engineer Agent", "action": "append_file", "target": p, "result": res})
     except Exception as exc:
         print(f"[Agent] apply_engineer_targeted_tools error: {exc}")
     return actions
 
 
-def apply_cli_and_inspector(text: str, workspace_root: str) -> list:
+def extract_cli_commands(text: str, workspace_root: str) -> list:
     actions = []
     try:
-        pattern = re.compile(r"<cmd_command>([\s\S]*?)</cmd_command>", re.IGNORECASE)
+        pattern = re.compile(r"<cmd_command(?:\s+cwd=['\"]([^'\"]+)['\"])?>([\s\S]*?)</cmd_command>", re.IGNORECASE)
         for match in pattern.finditer(text):
-            cmd = match.group(1).strip()
+            sub_cwd = match.group(1)
+            cmd = match.group(2).strip()
             if not cmd:
                 continue
 
-            cli_res = execute_shell_command(cmd, cwd=workspace_root)
-            actions.append({"agent": "CLI Agent", "action": "cmd_command", "target": cmd, "result": cli_res})
+            target_cwd = workspace_root
+            if sub_cwd:
+                cand = os.path.normpath(os.path.join(workspace_root, sub_cwd))
+                if os.path.exists(cand):
+                    target_cwd = cand
 
-            is_ok = cli_res.get("success", False) and cli_res.get("exit_code", 0) == 0
-            if is_ok:
-                actions.append({
-                    "agent": "Inspector Agent",
-                    "action": "verify_qa",
-                    "target": cmd,
-                    "result": {"success": True, "message": "Exit code 0 confirmed. Behavior verified. Signaled Project Architect."}
-                })
-            else:
-                actions.append({
-                    "agent": "Inspector Agent",
-                    "action": "diagnose_failure",
-                    "target": cmd,
-                    "result": {
-                        "success": False,
-                        "diagnosis": f"Exit code {cli_res.get('exit_code')}. Diagnosed failure. Dispatched fix to Engineer Agent."
-                    }
-                })
+            actions.append({
+                "agent": "CLI Agent",
+                "action": "cmd_command",
+                "command": cmd,
+                "cwd": target_cwd,
+                "display_cwd": sub_cwd or ".",
+                "pending_approval": True,
+                "result": {"status": "pending_approval"}
+            })
     except Exception as exc:
-        print(f"[Agent] apply_cli_and_inspector error: {exc}")
+        print(f"[Agent] extract_cli_commands error: {exc}")
     return actions
 
 
-def sanitize_display_response(text: str) -> str:
+def sanitize_display_response(text: str, workspace_root: str = None) -> str:
     try:
-        clean = re.sub(r"<create_file\s+path=['\"]([^'\"]+)['\"]>([\s\S]*?)</create_file>", r"```\n\2\n```", text)
-        clean = re.sub(r"<replace_block[\s\S]*?</replace_block>", "", clean)
-        clean = re.sub(r"<append_file[\s\S]*?</append_file>", "", clean)
-        clean = re.sub(r"<cmd_command>([\s\S]*?)</cmd_command>", r"`\1`", clean)
+        clean = re.sub(r"<(?:create_file|write|file)\s+(?:path|src)=['\"][^'\"]+['\"]>[\s\S]*?</(?:create_file|write|file)>", "", text, flags=re.IGNORECASE)
+        clean = re.sub(r"<replace_block[\s\S]*?</replace_block>", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"<append_file[\s\S]*?</append_file>", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"<cmd_command(?:\s+cwd=['\"][^'\"]+['\"])?>([\s\S]*?)</cmd_command>", r"```bash\n\1\n```", clean, flags=re.IGNORECASE)
+
+        if workspace_root:
+            clean = clean.replace(workspace_root, "project workspace")
+            clean = clean.replace(workspace_root.replace("\\", "/"), "project workspace")
+
+        clean = re.sub(r"TASK-\d+[:\s]*", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"\n{3,}", "\n\n", clean)
         return clean.strip()
     except Exception:
         return text
+
+
+def generate_conversation_title(prompt: str) -> dict:
+    try:
+        title_prompt = (
+            "You are a conversation titling agent in Emris AI. Read the user's initial prompt and formulate a "
+            "concise, clear, professional title of 3 to 5 words max. "
+            "Do NOT use quotes, brackets, or trailing punctuation. Output ONLY the title text.\n\n"
+            f"Prompt: {prompt}"
+        )
+        res = request_generate(title_prompt, model="gemini-3.5-flash-lite")
+        if res.get("success") and res.get("data"):
+            text = res["data"].get("response") or res["data"].get("text") or ""
+            clean_title = text.strip().replace('"', '').replace("'", "").strip()
+            if clean_title:
+                return {"success": True, "title": clean_title[:45]}
+        clean = " ".join(prompt.split()[:5]).strip()
+        return {"success": True, "title": clean if clean else "New Conversation"}
+    except Exception as exc:
+        print(f"[Agent] generate_conversation_title error: {exc}")
+        return {"success": True, "title": "New Conversation"}
+
+
+def detect_and_prepare_subfolder(prompt: str, workspace_root: str):
+    try:
+        folder_match = re.search(r"(?:make|create|in)\s+([a-zA-Z0-9_\-]+)\s+(?:folder|directory)", prompt, re.IGNORECASE)
+        if folder_match:
+            sub = folder_match.group(1).strip()
+            if sub and not sub.lower() in ("a", "the", "new", "this"):
+                sub_path = Path(workspace_root) / sub
+                sub_path.mkdir(parents=True, exist_ok=True)
+                print(f"[Agent] Prepared requested target folder: {sub_path}")
+                return str(sub_path), sub
+    except Exception as exc:
+        print(f"[Agent] detect_and_prepare_subfolder error: {exc}")
+    return workspace_root, "."
 
 
 def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite") -> dict:
@@ -276,110 +145,200 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                 print(f"[Agent] Workspace mkdir error: {me}")
         effective_workspace = workspace_root if workspace_root and os.path.exists(workspace_root) else os.getcwd()
         ensure_emris_memory(effective_workspace)
+
+        detect_and_prepare_subfolder(prompt, effective_workspace)
+
         proj_map = build_project_map(effective_workspace)
         fn_index = build_functions_index(effective_workspace)
 
-        architect_prompt = f"""You are the autonomous AI engineering team in Emris AI powered by Gemini 3.5 Flash Lite.
+        planner_prompt = f"""You are the Chief Architect of an autonomous software engineering team in Emris AI.
 Workspace Directory: {effective_workspace}
 
-PROJECT MAP:
-{proj_map[:500]}
+CURRENT PROJECT DIRECTORY MAP:
+{proj_map[:600]}
 
 FUNCTIONS INDEX:
-{fn_index[:500]}
+{fn_index[:400]}
 
-USER GOAL:
+USER REQUEST:
 {prompt}
 
-CRITICAL RULES:
-1. Break down the user goal into concrete, specific, realistic steps in 'plans_md' (NOT generic placeholders).
-   Every step must have: id, agent ("Project Architect", "Engineer Agent", "CLI Agent", "Inspector Agent", or "File analyzer Agent"), model ("Gemini 3.5 Flash Lite"), description (specific to this task), and output (what this step achieves).
-2. IF CREATING OR EDITING CODE:
-   You MUST include files inside 'response' using:
-   <create_file path="relative/path/to/file">
-   full file code
-   </create_file>
-   or
-   <replace_block path="relative/path/to/file">
-   <search>exact old block</search>
-   <replace>new replacement block</replace>
-   </replace_block>
-3. In 'response', write a direct, helpful, professional, user-friendly explanation of what was built or solved.
-   DO NOT repeat or echo the user's prompt (never start with 'Topshiriq qabul qilindi' or quote the prompt).
-   DO NOT output generic internal status messages like 'A is done, B is done'.
+Formulate an end-to-end multi-agent execution plan customized specifically to achieve this user goal.
+Inspect the directory map. If the user asked to work in or create a subfolder, include that in your plan.
+If the prompt requires running terminal or system commands (e.g. ping, npm install, dev server, diagnostics), assign them to the CLI Agent with tool "cli:run_command".
 
-Respond ONLY in valid JSON matching this schema:
+Respond ONLY with valid JSON matching this schema:
 {{
-  "chief_thought": "Concrete technical approach and architectural decision for this request",
-  "plans_md": [
-    {{"id": 1, "agent": "Project Architect", "model": "Gemini 3.5 Flash Lite", "description": "Specific plan for user inquiry", "output": "Architecture plan formulated"}},
-    {{"id": 2, "agent": "Engineer Agent", "model": "Gemini 3.5 Flash Lite", "description": "Create or update targeted files", "output": "Files implemented"}},
-    {{"id": 3, "agent": "CLI Agent", "model": "Gemini 3.5 Flash Lite", "description": "Verify environment & syntax", "output": "Syntax and build verified"}},
-    {{"id": 4, "agent": "Inspector Agent", "model": "Gemini 3.5 Flash Lite", "description": "QA inspection and validation", "output": "Verified output behavior and confirmed pass"}}
-  ],
-  "response": "User-friendly answer containing <create_file path='...'>...</create_file> tags with complete code"
+  "project": {{
+    "name": "<Descriptive Project Name>",
+    "framework": "<Framework or Technology>",
+    "orchestrator": "Chief Architect"
+  }},
+  "execution_plan": [
+    {{
+      "task_id": "TASK-001",
+      "phase": "Phase 1: Architecture & Scaffolding",
+      "title": "<Task Title>",
+      "agent": "<Chief Architect | Engineer Agent | CLI Agent | Frontend UI Agent | Inspector Agent>",
+      "tools": ["file_system:write_file", "cli:run_command"],
+      "objective": "<Specific technical objective>",
+      "dependencies": []
+    }}
+  ]
 }}"""
 
-        raw_result = request_generate(architect_prompt, model="gemini-3.5-flash-lite")
-        raw_text = ""
-        if raw_result.get("success") and raw_result.get("data"):
-            data = raw_result["data"]
-            raw_text = data.get("response") or data.get("text") or data.get("content") or ""
+        raw_plan_res = request_generate(planner_prompt, model="gemini-3.5-flash-lite")
+        plan_text = ""
+        if raw_plan_res.get("success") and raw_plan_res.get("data"):
+            data = raw_plan_res["data"]
+            plan_text = data.get("response") or data.get("text") or data.get("content") or ""
 
         parsed_plan = None
-        if raw_text:
-            cleaned = re.sub(r"^```(?:json)?\s*", "", raw_text.strip())
+        if plan_text:
+            cleaned = re.sub(r"^```(?:json)?\s*", "", plan_text.strip())
             cleaned = re.sub(r"\s*```$", "", cleaned)
             try:
                 parsed_plan = json.loads(cleaned)
             except Exception as parse_err:
-                print(f"[Agent] JSON parse notice: {parse_err}")
+                print(f"[Agent] Planner JSON parse notice: {parse_err}")
 
-        default_tasks = [
-            {"id": 1, "agent": "Project Architect", "model": "Gemini 3.5 Flash Lite", "description": f"Loyiha arxitekturasi: {prompt[:30]}", "output": "Arxitektura rejalashtirildi"},
-            {"id": 2, "agent": "Engineer Agent", "model": "Gemini 3.5 Flash Lite", "description": "Maqsadli fayllar va kod sintezi", "output": "Kod ishlab chiqildi"},
-            {"id": 3, "agent": "CLI Agent", "model": "Gemini 3.5 Flash Lite", "description": "Muhit va sintaksis tekshiruvi", "output": "Sintaksis tekshirildi (Exit code 0)"},
-            {"id": 4, "agent": "Inspector Agent", "model": "Gemini 3.5 Flash Lite", "description": "QA tahlili va sifat nazorati", "output": "QA tasdiqlandi"}
-        ]
-
-        if not parsed_plan or not isinstance(parsed_plan, dict):
-            clean_ans = raw_text if raw_text and not raw_text.strip().startswith("{") else "Topshiriq tahlil qilindi va zarur kod arxitekturasi tayyorlandi."
+        if not parsed_plan or not isinstance(parsed_plan, dict) or "execution_plan" not in parsed_plan:
+            is_cli_intent = any(k in prompt.lower() for k in ["ping", "curl", "npm", "git", "run", "install", "start"])
+            first_agent = "CLI Agent" if is_cli_intent else "Chief Architect"
             parsed_plan = {
-                "chief_thought": "Project Architect arxitektura rejasini tuzdi va xotira fayllarini yangiladi.",
-                "plans_md": default_tasks,
-                "response": clean_ans
+                "project": {"name": "Software Solution", "framework": "Modern Architecture", "orchestrator": "Chief Architect"},
+                "execution_plan": [
+                    {
+                        "task_id": "TASK-001",
+                        "phase": "Phase 1: Architecture & Planning",
+                        "title": "Analyze Goals & Structure",
+                        "agent": first_agent,
+                        "tools": ["cli:run_command" if is_cli_intent else "file_system:write_file"],
+                        "objective": f"Formulate execution for: {prompt[:40]}",
+                        "dependencies": []
+                    },
+                    {
+                        "task_id": "TASK-002",
+                        "phase": "Phase 2: Execution & Synthesis",
+                        "title": "Synthesize Components & Commands",
+                        "agent": "Engineer Agent",
+                        "tools": ["file_system:write_file"],
+                        "objective": "Build required production components and configure environment.",
+                        "dependencies": ["TASK-001"]
+                    },
+                    {
+                        "task_id": "TASK-003",
+                        "phase": "Phase 3: Verification & Review",
+                        "title": "Quality Inspection & Validation",
+                        "agent": "Inspector Agent",
+                        "tools": ["file_system:read_file"],
+                        "objective": "Verify build output and environment readiness.",
+                        "dependencies": ["TASK-002"]
+                    }
+                ]
             }
 
-        tasks = parsed_plan.get("plans_md", default_tasks)
-        if isinstance(tasks, str):
-            tasks = default_tasks
-        for t in tasks:
-            t["model"] = "Gemini 3.5 Flash Lite"
-        write_plans_md(effective_workspace, prompt, tasks)
+        tasks = parsed_plan.get("execution_plan", [])
+        write_plans_md(effective_workspace, prompt, parsed_plan)
+
+        engineer_prompt = f"""You are the senior Engineer Agent & CLI Agent team in Emris AI.
+User Goal: {prompt}
+Workspace: {effective_workspace}
+Directory Map:
+{proj_map[:400]}
+Execution Plan: {json.dumps(tasks)}
+
+Instructions:
+1. IF CREATING OR EDITING CODE:
+   Synthesize the complete, working source code for all needed files.
+   Format:
+   <write src="relative/path/to/file">
+   FULL_FILE_CONTENT
+   </write>
+
+2. IF TERMINAL OR SYSTEM COMMANDS ARE NEEDED (e.g., ping, npm install, npm run dev, test commands):
+   Do NOT ask the user to manually type commands. Emit the exact commands using:
+   <cmd_command cwd="optional/subfolder">exact command</cmd_command>
+   The desktop system will present an interactive approval card to the user before running it.
+
+3. FINAL USER RESPONSE:
+   Write a professional, user-friendly executive summary explaining:
+   - What components were created or actions prepared.
+   - Key features implemented.
+   - Instructions on how to test or launch the project locally.
+   DO NOT include raw code dumps in your text response. The files are already saved to disk.
+   DO NOT leak internal paths like "{effective_workspace}" or internal task IDs."""
+
+        raw_eng_res = request_generate(engineer_prompt, model=model)
+        eng_text = ""
+        if raw_eng_res.get("success") and raw_eng_res.get("data"):
+            d = raw_eng_res["data"]
+            eng_text = d.get("response") or d.get("text") or d.get("content") or ""
+
         executed_actions = [
-            {"agent": "Project Architect", "action": "write_plans", "target": "plans.md", "result": {"success": True}},
+            {"agent": "Chief Architect", "action": "write_plans", "target": "plans.md", "result": {"success": True}},
             {"agent": "File analyzer Agent", "action": "index_functions", "target": "Functions.md", "result": {"success": True}}
         ]
-        full_text = parsed_plan.get("response", "") or raw_text or "Topshiriq bo'yicha yechim tayyorlandi."
-        eng_actions = apply_engineer_targeted_tools(full_text, effective_workspace)
-        cli_actions = apply_cli_and_inspector(full_text, effective_workspace)
-        executed_actions.extend(eng_actions)
-        executed_actions.extend(cli_actions)
 
-        created_files = [a["target"] for a in eng_actions if a.get("action") in ("create_file", "write", "replace_block")]
-        if created_files:
-            for task in tasks:
-                if task.get("agent") == "Engineer Agent":
-                    task["output"] = f"Yaratildi/Yangilandi: {', '.join(created_files)}"
+        if eng_text:
+            file_actions = apply_engineer_targeted_tools(eng_text, effective_workspace)
+            executed_actions.extend(file_actions)
 
-        display_text = sanitize_display_response(full_text)
+            cmd_actions = extract_cli_commands(eng_text, effective_workspace)
+            executed_actions.extend(cmd_actions)
+
+        created_files = [a["target"] for a in executed_actions if a.get("action") == "create_file"]
+        pending_commands = [a for a in executed_actions if a.get("action") == "cmd_command"]
+
+        formatted_steps = []
+        for idx, task in enumerate(tasks, start=1):
+            t_agent = task.get("agent", "Engineer Agent")
+            t_title = task.get("title", f"Step {idx}")
+            t_phase = task.get("phase", "")
+            t_obj = task.get("objective", "")
+
+            step_out = f"Phase verified: {t_phase}"
+            matching_cmd = next((c for c in pending_commands if "CLI" in t_agent or "command" in task.get("tools", [])), None)
+
+            if matching_cmd:
+                step_out = f"Command proposed: {matching_cmd.get('command')}"
+            elif "Engineer" in t_agent or "Synthesizing" in t_title or "Code" in t_title:
+                step_out = f"Created: {', '.join(created_files)}" if created_files else "Generated source components"
+            elif "Architect" in t_agent:
+                step_out = "Execution plan formulated & synced to plans.md"
+
+            formatted_steps.append({
+                "id": idx,
+                "task_id": task.get("task_id", f"TASK-{idx:03d}"),
+                "phase": t_phase,
+                "agent": t_agent,
+                "model": "Gemini 3.5 Flash Lite",
+                "title": t_title,
+                "subtitle": t_obj,
+                "description": t_obj,
+                "output": step_out,
+                "tools": task.get("tools", []),
+                "pending_command": matching_cmd
+            })
+
+        user_friendly_summary = sanitize_display_response(eng_text, effective_workspace)
+        if not user_friendly_summary:
+            if created_files:
+                user_friendly_summary = f"### Solution Summary\n\nSuccessfully generated project components:\n" + "\n".join([f"- `{f}`" for f in created_files]) + "\n\nYou can review and open the code in the **Files & Code** tab on the right."
+            elif pending_commands:
+                user_friendly_summary = f"### Command Ready\n\nProposed command for execution: `{pending_commands[0].get('command')}`. Please review and approve in the workflow card above."
+            else:
+                user_friendly_summary = "Execution plan formulated and synchronized to your project directory."
 
         return {
             "success": True,
-            "chief_thought": parsed_plan.get("chief_thought", ""),
-            "steps": tasks,
+            "project": parsed_plan.get("project", {}),
+            "chief_thought": f"Architected dynamic execution plan with {len(formatted_steps)} phases and synthesized targeted solution.",
+            "steps": formatted_steps,
             "actions": executed_actions,
-            "response": display_text
+            "created_files": created_files,
+            "pending_commands": pending_commands,
+            "response": user_friendly_summary
         }
     except Exception as exc:
         print(f"[Agent] Multi-agent cycle error: {exc}")
@@ -388,5 +347,5 @@ Respond ONLY in valid JSON matching this schema:
             "chief_thought": "Agent workflow error",
             "steps": [],
             "actions": [],
-            "response": "Topshiriqni bajarish jarayonida kutilmagan xatolik yuz berdi. Iltimos, qayta urinib ko'ring."
+            "response": f"Kutilmagan xatolik yuz berdi: {str(exc)}"
         }
