@@ -30,3 +30,16 @@ pre {
     background-color: #030712 !important;
     border: 1px solid #2e2e32;
 }
+
+textarea,
+.no-scrollbar {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+textarea::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}

@@ -14,6 +14,7 @@ data/
 # Guidance, logs, and navigation documentation
 gemini_logs/
 GEMINI.md
+local_or_vercel.txt
 PROJECT_MAP.md
 backend/BACKEND_MAP.md
 frontend/FRONTEND_MAP.md

@@ -13,14 +13,18 @@ export default function CenterWorkspace({
   messages = [],
   agentState = null,
   onCancelAgent,
+  onDismissWorkflow,
   onSelectProject,
   onOpenFolderModal,
   onSubmitPrompt,
   onApproveCommand,
-  onRejectCommand
+  onRejectCommand,
+  onContinueAnyway,
+  approvingStepId
 }) {
   const { t } = useTranslation();
   const [promptText, setPromptText] = useState("");
+  const isNoProject = !currentProject || currentProject === "No Project";
   const [selectedTab, setSelectedTab] = useState("work");
   const [selectedModel, setSelectedModel] = useState("gemini-3.5-flash-lite");
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -37,11 +41,12 @@ export default function CenterWorkspace({
     }
   }, [messages, agentState]);
 
-  const handleChatTabClick = async () => {
+  const handleChatTabClick = () => {
     try {
-      await desktopApi.openExternal("https://suniyintellekt.uz");
+      desktopApi.openExternal("https://suniyintellekt.uz");
     } catch (error) {
-      console.error("[Workspace] Failed to open external browser:", error);
+      console.error("[Workspace] Error opening chat website:", error);
+      window.open("https://suniyintellekt.uz", "_blank");
     }
   };
 
@@ -55,14 +60,18 @@ export default function CenterWorkspace({
 
   const handleFormSubmit = (e) => {
     try {
-      if (e) e.preventDefault();
-      if (!promptText.trim() || agentState?.isRunning) return;
-      if (onSubmitPrompt) {
-        onSubmitPrompt(promptText.trim(), selectedModel);
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
       }
+      const text = promptText.trim();
+      if (!text || agentState?.isRunning) return;
       setPromptText("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
+      }
+      if (onSubmitPrompt) {
+        onSubmitPrompt(text, selectedModel, selectedTab);
       }
     } catch (error) {
       console.error("[Workspace] Error submitting prompt:", error);
@@ -73,6 +82,7 @@ export default function CenterWorkspace({
     try {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
+        e.stopPropagation();
         handleFormSubmit();
       }
     } catch (error) {
@@ -84,7 +94,7 @@ export default function CenterWorkspace({
     try {
       setPromptText(e.target.value);
       e.target.style.height = "auto";
-      e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+      e.target.style.height = `${Math.min(e.target.scrollHeight, 185)}px`;
     } catch (err) {
       console.error("[Workspace] Textarea input error:", err);
     }
@@ -97,43 +107,29 @@ export default function CenterWorkspace({
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#131314] relative z-0">
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
           <div className="max-w-3xl w-full mx-auto space-y-4">
-            {messages.map((msg, index) => {
-              const isLastAssistant = msg.role === "assistant" && index === messages.length - 1;
-              return (
-                <React.Fragment key={msg.id}>
-                  {isLastAssistant && agentState && (
-                    <div className="w-full pt-1">
-                      <AgentActivityCard
-                        isRunning={agentState.isRunning}
-                        currentStage={agentState.currentStage}
-                        plan={agentState.plan}
-                        actions={agentState.actions}
-                        onCancel={onCancelAgent}
-                        projectName={currentProject}
-                        onApproveCommand={onApproveCommand}
-                        onRejectCommand={onRejectCommand}
-                      />
-                    </div>
-                  )}
-                  <ChatMessage
-                    message={msg}
-                    currentModelLabel={currentModelLabel}
-                  />
-                </React.Fragment>
-              );
-            })}
+            {messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                currentModelLabel={currentModelLabel}
+              />
+            ))}
 
-            {agentState && (!messages.some((m) => m.role === "assistant") || messages[messages.length - 1]?.role === "user") && (
+            {agentState && (
               <div className="w-full pt-1">
                 <AgentActivityCard
                   isRunning={agentState.isRunning}
+                  isInterrupted={agentState.isInterrupted || agentState.status === "interrupted"}
                   currentStage={agentState.currentStage}
                   plan={agentState.plan}
                   actions={agentState.actions}
                   onCancel={onCancelAgent}
+                  onDismiss={onDismissWorkflow}
                   projectName={currentProject}
                   onApproveCommand={onApproveCommand}
                   onRejectCommand={onRejectCommand}
+                  onContinueAnyway={onContinueAnyway}
+                  approvingStepId={approvingStepId}
                 />
               </div>
             )}
@@ -157,6 +153,28 @@ export default function CenterWorkspace({
                 <i className="fa-solid fa-plus text-xs"></i>
               </button>
 
+              <div className="flex items-center bg-[#18181b] rounded-xl p-0.5 border border-[#27272a] flex-shrink-0 mr-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={handleChatTabClick}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[#a1a1aa] hover:text-[#F9F9FA] hover:bg-[#27272a] transition-colors cursor-pointer"
+                  title="Opens suniyintellekt.uz in default browser"
+                >
+                  <i className="fa-regular fa-comment-dots text-[11px] text-[#a1a1aa]"></i>
+                  <span className="text-[11px]">{t("workspace.chat_mode")}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleWorkTabClick}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#27272a] text-[#F9F9FA] font-medium shadow-sm border border-[#3f3f46]/40 transition-colors cursor-pointer"
+                  title="Autonomous agent team with sandbox & tools"
+                >
+                  <i className="fa-solid fa-briefcase text-[11px] text-[#a1a1aa]"></i>
+                  <span className="text-[11px]">{t("workspace.work_mode")}</span>
+                </button>
+              </div>
+
               <textarea
                 ref={textareaRef}
                 rows={1}
@@ -165,7 +183,7 @@ export default function CenterWorkspace({
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
                 placeholder={agentState?.isRunning ? "Agent topshiriqni bajarmoqda..." : t("workspace.placeholder")}
-                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#71717a] px-2 py-1.5 focus:outline-none resize-none max-h-36 disabled:opacity-50"
+                className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#71717a] px-2 py-1.5 focus:outline-none resize-none max-h-[185px] disabled:opacity-50 no-scrollbar"
               />
 
               <div className="relative flex-shrink-0 ml-2">
@@ -245,11 +263,7 @@ export default function CenterWorkspace({
               <button
                 type="button"
                 onClick={handleChatTabClick}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                  selectedTab === "chat"
-                    ? "bg-[#27272a] text-[#ffffff] font-medium shadow-sm"
-                    : "text-[#a1a1aa] hover:text-[#F9F9FA]"
-                }`}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[#a1a1aa] hover:text-[#F9F9FA] hover:bg-[#27272a] transition-colors cursor-pointer"
                 title="Opens suniyintellekt.uz in default browser"
               >
                 <i className="fa-regular fa-comment-dots text-xs text-[#a1a1aa]"></i>
@@ -259,24 +273,22 @@ export default function CenterWorkspace({
               <button
                 type="button"
                 onClick={handleWorkTabClick}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                  selectedTab === "work"
-                    ? "bg-[#27272a] text-[#F9F9FA] font-medium shadow-sm border border-[#3f3f46]/40"
-                    : "text-[#a1a1aa] hover:text-[#F9F9FA]"
-                }`}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#27272a] text-[#F9F9FA] font-medium shadow-sm border border-[#3f3f46]/40 transition-colors cursor-pointer"
+                title="Autonomous agent team with sandbox & tools"
               >
                 <i className="fa-solid fa-briefcase text-xs text-[#a1a1aa]"></i>
                 <span>{t("workspace.work_mode")}</span>
               </button>
             </div>
 
-            <input
-              type="text"
+            <textarea
+              rows={1}
               value={promptText}
               disabled={agentState?.isRunning}
-              onChange={(e) => setPromptText(e.target.value)}
+              onChange={handleTextareaInput}
+              onKeyDown={handleKeyDown}
               placeholder={agentState?.isRunning ? "Agent topshiriqni bajarmoqda..." : t("workspace.placeholder")}
-              className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#71717a] px-2 py-2 focus:outline-none disabled:opacity-50"
+              className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-[#F9F9FA] placeholder-[#71717a] px-2 py-2 focus:outline-none resize-none max-h-[185px] disabled:opacity-50 no-scrollbar"
             />
 
             <div className="relative flex-shrink-0 ml-2">

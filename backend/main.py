@@ -13,7 +13,7 @@ if str(project_root) not in sys.path:
 
 try:
     from backend.database import db
-    from backend.terminal import execute_shell_command
+    from backend.terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
     from backend.gateway import (
         get_device_quota,
         check_gateway_health,
@@ -21,11 +21,11 @@ try:
         get_persistent_device_id,
         fetch_remote_keys
     )
-    from backend.agent import run_hierarchical_cycle, generate_conversation_title
+    from backend.agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from backend.server import start_local_api_server
 except ImportError:
     from database import db
-    from terminal import execute_shell_command
+    from terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
     from gateway import (
         get_device_quota,
         check_gateway_health,
@@ -33,13 +33,16 @@ except ImportError:
         get_persistent_device_id,
         fetch_remote_keys
     )
-    from agent import run_hierarchical_cycle, generate_conversation_title
+    from agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from server import start_local_api_server
 
 if sys.stdout is None:
     sys.stdout = io.StringIO()
 if sys.stderr is None:
     sys.stderr = io.StringIO()
+
+
+os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--allow-insecure-localhost --disable-features=BlockInsecurePrivateNetworkRequests --disable-web-security"
 
 
 def load_env_file():
@@ -153,9 +156,9 @@ class DesktopBridge:
             print(f"[Desktop] get_conversations error: {exc}")
             return []
 
-    def create_conversation(self, title: str, project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
+    def create_conversation(self, title: str = "New chat", project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
         try:
-            return db.create_conversation(title, project_id, model)
+            return db.create_conversation(title or "New chat", project_id, model)
         except Exception as exc:
             print(f"[Desktop] create_conversation error: {exc}")
             return None
@@ -202,6 +205,20 @@ class DesktopBridge:
             print(f"[Desktop] run_command error: {exc}")
             return {"success": False, "stdout": "", "stderr": str(exc), "exit_code": -1}
 
+    def stop_command(self, process_id: str = None):
+        try:
+            return stop_shell_process(process_id)
+        except Exception as exc:
+            print(f"[Desktop] stop_command error: {exc}")
+            return {"success": False, "error": str(exc)}
+
+    def get_active_processes(self):
+        try:
+            return {"success": True, "processes": get_active_shell_processes()}
+        except Exception as exc:
+            print(f"[Desktop] get_active_processes error: {exc}")
+            return {"success": False, "processes": []}
+
     def get_quota(self):
         try:
             return get_device_quota()
@@ -237,12 +254,33 @@ class DesktopBridge:
             print(f"[Desktop] fetch_keys error: {exc}")
             return {"success": False, "error": str(exc)}
 
-    def run_agent_workflow(self, prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite"):
+    def run_agent_workflow(self, prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite", history: list = None):
         try:
-            return run_hierarchical_cycle(prompt, workspace_root, model)
+            return run_hierarchical_cycle(prompt, workspace_root, model, history)
         except Exception as exc:
             print(f"[Desktop] run_agent_workflow error: {exc}")
             return {"success": False, "error": str(exc)}
+
+    def run_conversation(self, prompt: str, history: list = None, model: str = "gemini-3.5-flash-lite"):
+        try:
+            return run_conversational_cycle(prompt, history, model)
+        except Exception as exc:
+            print(f"[Desktop] run_conversation error: {exc}")
+            return {"success": False, "response": f"Xatolik: {str(exc)}"}
+
+    def classify_workflow(self, prompt: str, has_project: bool = True, project_name: str = None):
+        try:
+            return classify_workflow_intent(prompt, has_project, project_name)
+        except Exception as exc:
+            print(f"[Desktop] classify_workflow error: {exc}")
+            return {"success": True, "workflow": "work" if has_project else "conversation"}
+
+    def inspect_command_error(self, command: str, cwd: str = None, exit_code: int = -1, stdout: str = "", stderr: str = "", workspace_root: str = None):
+        try:
+            return inspect_command_failure(command, cwd, exit_code, stdout, stderr, workspace_root)
+        except Exception as exc:
+            print(f"[Desktop] inspect_command_error: {exc}")
+            return {"success": False, "diagnosis": f"Command failed with code {exit_code}.", "suggested_command": "", "action": "retry"}
 
     def generate_title(self, prompt: str):
         try:
@@ -304,22 +342,6 @@ class DesktopBridge:
             print(f"[Desktop] read_file_content error: {exc}")
             return {"success": False, "error": str(exc), "content": ""}
 
-    def generate_title(self, prompt: str):
-        try:
-            clean_prompt = (prompt or "")[:300]
-            sys_msg = "Generate a concise 2 to 4 word title for this chat topic. Return ONLY the title, no quotes, no markdown, no punctuation at end."
-            full_prompt = f"{sys_msg}\nUser prompt: {clean_prompt}"
-            res = request_generate(full_prompt, model="gemini-3.5-flash-lite")
-            if res.get("success") and res.get("data"):
-                data = res["data"]
-                title = data.get("response") or data.get("text") or data.get("content") or ""
-                title = re.sub(r'["`*#]', '', title).strip().split("\n")[0][:45]
-                if title:
-                    return {"success": True, "title": title}
-            return {"success": True, "title": clean_prompt[:25] or "New Conversation"}
-        except Exception as exc:
-            print(f"[Desktop] generate_title error: {exc}")
-            return {"success": False, "title": "New Conversation", "error": str(exc)}
 
     def update_conversation_title(self, conversation_id: str, title: str):
         try:
@@ -352,21 +374,22 @@ def get_base_dir() -> Path:
 def resolve_target_url(base_dir: Path) -> str:
     try:
         is_dev_flag = "--dev" in sys.argv or os.getenv("EMRIS_ENV") == "development"
-        vite_active = is_port_in_use(5173)
-
-        if is_dev_flag or vite_active:
-            print("[Desktop] Live server active: targeting http://localhost:5173")
-            return "http://localhost:5173"
+        if is_dev_flag and is_port_in_use(5173, "127.0.0.1"):
+            print("[Desktop] Live server active: targeting http://127.0.0.1:5173")
+            return "http://127.0.0.1:5173"
 
         dist_index = base_dir / "frontend" / "dist" / "index.html"
         if dist_index.exists():
             print(f"[Desktop] Production build found: targeting {dist_index}")
             return str(dist_index)
 
-        return "http://localhost:5173"
+        if is_port_in_use(5173, "127.0.0.1"):
+            return "http://127.0.0.1:5173"
+
+        return "http://127.0.0.1:8765"
     except Exception as exc:
         print(f"[Desktop] Error determining target URL: {exc}")
-        return "http://localhost:5173"
+        return "http://127.0.0.1:8765"
 
 
 def launch_desktop_window():
@@ -375,12 +398,11 @@ def launch_desktop_window():
         target_url = resolve_target_url(base_dir)
         print(f"[Desktop] Launching Emris AI Desktop window: {target_url}")
 
-        use_http_server = not target_url.startswith("http://") and not target_url.startswith("https://")
         start_local_api_server(8765)
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Dekstop App — v1.1 Beta",
+            title="Emris AI Desktop App — v1.1 Beta",
             url=target_url,
             width=1360,
             height=860,
@@ -388,7 +410,7 @@ def launch_desktop_window():
             background_color="#131314",
             js_api=bridge_api
         )
-        webview.start(http_server=use_http_server)
+        webview.start(http_server=False)
     except Exception as exc:
         print(f"[Desktop] Critical launcher error: {exc}")
         sys.exit(1)

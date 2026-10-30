@@ -10,6 +10,7 @@ export default function Sidebar({
   onSelectProject,
   onSelectConversation,
   onNewConversation,
+  onNewStandaloneConversation,
   onOpenFolderModal,
   onDeleteProject,
   onDeleteConversation,
@@ -285,8 +286,18 @@ export default function Sidebar({
         </div>
 
         <div>
-          <div className="px-2 text-xs font-semibold text-[#94a3b8] mb-1">
+          <div className="px-2 flex items-center justify-between text-xs font-semibold text-[#94a3b8] mb-1">
             <span>{t("sidebar.conversations")}</span>
+            {onNewStandaloneConversation && (
+              <button
+                type="button"
+                onClick={onNewStandaloneConversation}
+                className="hover:text-[#F9F9FA] p-0.5 cursor-pointer text-[#64748b] transition-colors"
+                title="New standalone chat"
+              >
+                <i className="fa-solid fa-plus text-xs"></i>
+              </button>
+            )}
           </div>
 
           <div className="space-y-0.5">

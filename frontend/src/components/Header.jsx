@@ -15,21 +15,11 @@ export default function Header({
   const { language, setLanguage, t } = useTranslation();
   const [isLangOpen, setIsLangOpen] = useState(false);
   const [isProjectOpen, setIsProjectOpen] = useState(false);
-  const [quota, setQuota] = useState(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
   const langRef = useRef(null);
   const projectRef = useRef(null);
   const titleInputRef = useRef(null);
-
-  useEffect(() => {
-    desktopApi.getQuota().then((data) => {
-      if (data && data.remaining !== undefined) {
-        setQuota(data);
-      }
-    }).catch((err) => console.error("[Header] Quota error:", err));
-  }, []);
-
   useEffect(() => {
     setTitleInput(currentSessionTitle || "");
   }, [currentSessionTitle]);
@@ -300,17 +290,6 @@ export default function Header({
             </div>
           )}
         </div>
-
-        {quota && quota.remaining !== undefined && (
-          <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e1e22] border border-[#2e2e34] text-xs"
-            title="Daily request quota"
-          >
-            <i className="fa-solid fa-bolt text-[#60a5fa] text-[10px]"></i>
-            <span className="text-[#f8fafc] font-medium">{quota.remaining}</span>
-            <span className="text-[#64748b]">/ {quota.limit || 50}</span>
-          </div>
-        )}
 
         <button
           type="button"

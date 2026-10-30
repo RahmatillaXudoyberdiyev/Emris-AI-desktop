@@ -1,37 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { desktopApi } from "../services/api";
+import TerminalView from "./TerminalView";
 
+const ICONS = {
+  js: { icon: "fa-brands fa-js", color: "text-[#f59e0b]" },
+  jsx: { icon: "fa-brands fa-js", color: "text-[#f59e0b]" },
+  ts: { icon: "fa-solid fa-code", color: "text-[#3b82f6]" },
+  tsx: { icon: "fa-solid fa-code", color: "text-[#3b82f6]" },
+  html: { icon: "fa-brands fa-html5", color: "text-[#ef4444]" },
+  css: { icon: "fa-brands fa-css3-alt", color: "text-[#06b6d4]" },
+  json: { icon: "fa-solid fa-brackets-curly", color: "text-[#eab308]" },
+  py: { icon: "fa-brands fa-python", color: "text-[#38bdf8]" },
+  md: { icon: "fa-solid fa-file-lines", color: "text-[#94a3b8]" }
+};
 const getFileIcon = (fileName) => {
   const ext = (fileName || "").split(".").pop().toLowerCase();
-  switch (ext) {
-    case "js":
-    case "jsx":
-      return { icon: "fa-brands fa-js", color: "text-[#f59e0b]" };
-    case "ts":
-    case "tsx":
-      return { icon: "fa-solid fa-code", color: "text-[#3b82f6]" };
-    case "html":
-      return { icon: "fa-brands fa-html5", color: "text-[#ef4444]" };
-    case "css":
-      return { icon: "fa-brands fa-css3-alt", color: "text-[#06b6d4]" };
-    case "json":
-      return { icon: "fa-solid fa-brackets-curly", color: "text-[#eab308]" };
-    case "py":
-      return { icon: "fa-brands fa-python", color: "text-[#38bdf8]" };
-    case "md":
-      return { icon: "fa-solid fa-file-lines", color: "text-[#94a3b8]" };
-    case "png":
-    case "jpg":
-    case "jpeg":
-    case "svg":
-    case "ico":
-      return { icon: "fa-solid fa-image", color: "text-[#a855f7]" };
-    default:
-      return { icon: "fa-solid fa-file", color: "text-[#64748b]" };
-  }
+  return ICONS[ext] || { icon: "fa-solid fa-file", color: "text-[#64748b]" };
 };
 
-export default function RightPanel({ isOpen, onClose, activeProject, refreshTrigger }) {
+export default function RightPanel({
+  isOpen,
+  onClose,
+  activeProject,
+  activeConversation,
+  refreshTrigger,
+  latestTerminalTask
+}) {
   const [activeTab, setActiveTab] = useState("files");
   const [fileTree, setFileTree] = useState([]);
   const [rootName, setRootName] = useState("");
@@ -43,10 +37,75 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const [panelWidth, setPanelWidth] = useState(() => {
+    try {
+      const saved = localStorage.getItem("emris_right_panel_width");
+      return saved ? parseInt(saved, 10) : 340;
+    } catch {
+      return 340;
+    }
+  });
+
+  const getChatId = (conv) => (conv ? String(conv.id) : "global");
+
+  const loadTerminalsForChat = (cId, defaultCwd) => {
+    try {
+      const raw = localStorage.getItem(`emris_terminals_${cId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [{ id: 1, title: "Terminal #1", logs: [], cwd: defaultCwd || "" }];
+  };
+
+  const [currentChatId, setCurrentChatId] = useState(() => getChatId(activeConversation));
+  const [terminals, setTerminals] = useState(() =>
+    loadTerminalsForChat(getChatId(activeConversation), activeProject?.path || "")
+  );
+  const [activeTerminalId, setActiveTerminalId] = useState(1);
+
+  useEffect(() => {
+    const nextChatId = getChatId(activeConversation);
+    if (nextChatId !== currentChatId) {
+      try {
+        localStorage.setItem(`emris_terminals_${currentChatId}`, JSON.stringify(terminals));
+      } catch {}
+      const loaded = loadTerminalsForChat(nextChatId, activeProject?.path || "");
+      setCurrentChatId(nextChatId);
+      setTerminals(loaded);
+      setActiveTerminalId(loaded[0]?.id || 1);
+    }
+  }, [activeConversation]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`emris_terminals_${currentChatId}`, JSON.stringify(terminals));
+    } catch {}
+  }, [terminals, currentChatId]);
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelWidth;
+    const onMove = (ev) => {
+      const nextW = Math.max(260, Math.min(window.innerWidth - 300, startW + (startX - ev.clientX)));
+      setPanelWidth(nextW);
+      try { localStorage.setItem("emris_right_panel_width", String(nextW)); } catch {}
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   useEffect(() => {
     try {
       if (activeProject && activeProject.path) {
         loadDirectory(activeProject.path);
+        setTerminals((prev) => prev.map((t) => (t.cwd ? t : { ...t, cwd: activeProject.path })));
       } else if (activeProject?.name && activeProject.name !== "No Project") {
         desktopApi.getProjects().then((pList) => {
           const found = (pList || []).find((p) => p.name === activeProject.name);
@@ -62,6 +121,60 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
       console.error("[RightPanel] Project effect error:", err);
     }
   }, [activeProject, refreshTrigger]);
+
+  useEffect(() => {
+    try {
+      if (!latestTerminalTask) return;
+      setActiveTab("terminal");
+      setTerminals((prev) => {
+        const targetId = activeTerminalId || (prev[0] ? prev[0].id : 1);
+        return prev.map((t) => {
+          if (t.id === targetId) {
+            const currentLogs = [...(t.logs || [])];
+            if (latestTerminalTask.status === "proposed") {
+              currentLogs.push({ type: "proposed", text: latestTerminalTask.command, cwd: latestTerminalTask.cwd || "." });
+            } else {
+              currentLogs.push({ type: "command", text: latestTerminalTask.command, cwd: latestTerminalTask.cwd || "." });
+              if (latestTerminalTask.stdout) currentLogs.push({ type: "stdout", text: latestTerminalTask.stdout });
+              if (latestTerminalTask.stderr) currentLogs.push({ type: "stderr", text: latestTerminalTask.stderr });
+              if (latestTerminalTask.exit_code !== undefined) {
+                currentLogs.push({ type: "status", text: `Process finished with exit code ${latestTerminalTask.exit_code}` });
+              }
+            }
+            return { ...t, logs: currentLogs };
+          }
+          return t;
+        });
+      });
+    } catch (err) {
+      console.error("[RightPanel] Terminal task event error:", err);
+    }
+  }, [latestTerminalTask]);
+
+  const handleAddTerminal = () => {
+    try {
+      const nextId = Math.max(0, ...terminals.map((t) => t.id)) + 1;
+      setTerminals((prev) => [...prev, { id: nextId, title: `Terminal #${nextId}`, logs: [], cwd: activeProject?.path || "" }]);
+      setActiveTerminalId(nextId);
+    } catch (err) {
+      console.error("[RightPanel] Add terminal error:", err);
+    }
+  };
+
+  const handleCloseTerminal = (id) => {
+    try {
+      const remaining = terminals.filter((t) => t.id !== id);
+      if (remaining.length === 0) {
+        setTerminals([{ id: 1, title: "Terminal #1", logs: [], cwd: activeProject?.path || "" }]);
+        setActiveTerminalId(1);
+      } else {
+        setTerminals(remaining);
+        if (activeTerminalId === id) setActiveTerminalId(remaining[0].id);
+      }
+    } catch (err) {
+      console.error("[RightPanel] Close terminal error:", err);
+    }
+  };
 
   const loadDirectory = async (folderPath) => {
     try {
@@ -91,20 +204,14 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
       setActiveTab("code");
       if (activeProject?.path) {
         const res = await desktopApi.readFileContent(activeProject.path, item.path);
-        if (res && res.success) {
-          setFileContent(res.content || "");
-        } else {
-          setFileContent(`Unable to read file content: ${res?.error || "Unknown error"}`);
-        }
+        setFileContent(res?.success ? (res.content || "") : `Unable to read file: ${res?.error || "Error"}`);
       }
     } catch (err) {
       console.error("[RightPanel] handleSelectFile error:", err);
     }
   };
 
-  const toggleFolder = (path) => {
-    setCollapsedPaths((prev) => ({ ...prev, [path]: !prev[path] }));
-  };
+  const toggleFolder = (path) => setCollapsedPaths((prev) => ({ ...prev, [path]: !prev[path] }));
 
   const handleCopyCode = () => {
     try {
@@ -123,7 +230,6 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
       if (searchQuery.trim() && !item.name.toLowerCase().includes(searchQuery.toLowerCase())) {
         if (!item.is_dir) return null;
       }
-
       const isCollapsed = Boolean(collapsedPaths[item.path]);
       const isSelected = selectedFile && selectedFile.path === item.path;
       const { icon, color } = getFileIcon(item.name);
@@ -140,9 +246,7 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
               <i className="fa-solid fa-folder text-[#38bdf8] text-xs"></i>
               <span className="truncate">{item.name}</span>
             </div>
-            {!isCollapsed && item.children && (
-              <div>{renderTree(item.children, depth + 1)}</div>
-            )}
+            {!isCollapsed && item.children && <div>{renderTree(item.children, depth + 1)}</div>}
           </div>
         );
       }
@@ -153,9 +257,7 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
           onClick={() => handleSelectFile(item)}
           style={{ paddingLeft: `${depth * 14 + 20}px` }}
           className={`flex items-center gap-2 py-1 px-2 rounded-md cursor-pointer text-xs transition-colors ${
-            isSelected
-              ? "bg-[#2563eb]/20 text-[#60a5fa] font-medium"
-              : "text-[#cbd5e1] hover:text-[#f8fafc] hover:bg-[#1f1f23]"
+            isSelected ? "bg-[#2563eb]/20 text-[#60a5fa] font-medium" : "text-[#cbd5e1] hover:text-[#f8fafc] hover:bg-[#1f1f23]"
           }`}
         >
           <i className={`${icon} ${color} text-xs flex-shrink-0`}></i>
@@ -168,16 +270,23 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
   if (!isOpen) return null;
 
   return (
-    <aside className="w-80 h-full bg-[#131316] border-l border-[#222226] flex flex-col flex-shrink-0 select-none z-20">
-      <div className="h-12 border-b border-[#222226] px-4 flex items-center justify-between">
+    <aside
+      style={{ width: `${panelWidth}px` }}
+      className="relative h-full bg-[#131316] border-l border-[#222226] flex flex-col flex-shrink-0 select-none z-20"
+    >
+      <div
+        onMouseDown={handleMouseDown}
+        className="absolute -left-1.5 top-0 w-3 h-full cursor-col-resize hover:bg-[#38bdf8]/40 active:bg-[#38bdf8] z-30 transition-colors"
+        title="Drag to resize panel"
+      />
+
+      <div className="h-12 border-b border-[#222226] px-3 flex items-center justify-between">
         <div className="flex items-center gap-1 bg-[#1a1a1e] p-0.5 rounded-lg border border-[#27272a]">
           <button
             type="button"
             onClick={() => setActiveTab("files")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === "files"
-                ? "bg-[#27272a] text-[#f8fafc] shadow-sm"
-                : "text-[#94a3b8] hover:text-[#f8fafc]"
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab === "files" ? "bg-[#27272a] text-[#f8fafc] shadow-sm" : "text-[#94a3b8] hover:text-[#f8fafc]"
             }`}
           >
             Files
@@ -185,33 +294,45 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
           <button
             type="button"
             onClick={() => setActiveTab("code")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTab === "code"
-                ? "bg-[#27272a] text-[#f8fafc] shadow-sm"
-                : "text-[#94a3b8] hover:text-[#f8fafc]"
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab === "code" ? "bg-[#27272a] text-[#f8fafc] shadow-sm" : "text-[#94a3b8] hover:text-[#f8fafc]"
             }`}
           >
             Code
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("terminal")}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "terminal" ? "bg-[#27272a] text-[#38bdf8] shadow-sm" : "text-[#94a3b8] hover:text-[#f8fafc]"
+            }`}
+          >
+            <i className="fa-solid fa-terminal text-[10px]"></i>
+            <span>Terminal</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 text-[#94a3b8]">
-          <button
-            type="button"
-            onClick={() => setIsSearching(!isSearching)}
-            className="p-1 hover:text-[#f8fafc] transition-colors cursor-pointer"
-            title="Search files"
-          >
-            <i className="fa-solid fa-magnifying-glass text-xs"></i>
-          </button>
-          <button
-            type="button"
-            onClick={() => activeProject?.path && loadDirectory(activeProject.path)}
-            className="p-1 hover:text-[#f8fafc] transition-colors cursor-pointer"
-            title="Refresh files"
-          >
-            <i className={`fa-solid fa-arrows-rotate text-xs ${isLoading ? "animate-spin" : ""}`}></i>
-          </button>
+          {activeTab === "files" && (
+            <button
+              type="button"
+              onClick={() => setIsSearching(!isSearching)}
+              className="p-1 hover:text-[#f8fafc] transition-colors cursor-pointer"
+              title="Search files"
+            >
+              <i className="fa-solid fa-magnifying-glass text-xs"></i>
+            </button>
+          )}
+          {activeTab === "files" && (
+            <button
+              type="button"
+              onClick={() => activeProject?.path && loadDirectory(activeProject.path)}
+              className="p-1 hover:text-[#f8fafc] transition-colors cursor-pointer"
+              title="Refresh files"
+            >
+              <i className={`fa-solid fa-arrows-rotate text-xs ${isLoading ? "animate-spin" : ""}`}></i>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -238,9 +359,9 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-        {activeTab === "files" ? (
-          <div>
+      <div className="flex-1 overflow-hidden">
+        {activeTab === "files" && (
+          <div className="h-full overflow-y-auto custom-scrollbar p-2">
             {!activeProject || !activeProject.path ? (
               <div className="h-full flex flex-col items-center justify-center p-6 text-center text-[#64748b]">
                 <i className="fa-solid fa-folder-open text-2xl mb-2"></i>
@@ -260,8 +381,10 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
               </div>
             )}
           </div>
-        ) : (
-          <div className="h-full flex flex-col text-xs">
+        )}
+
+        {activeTab === "code" && (
+          <div className="h-full flex flex-col text-xs p-2">
             {selectedFile ? (
               <div className="flex flex-col h-full">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#222226] text-[#94a3b8]">
@@ -285,6 +408,19 @@ export default function RightPanel({ isOpen, onClose, activeProject, refreshTrig
                 <p>Select a file from the Files tab to inspect its code.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "terminal" && (
+          <div className="h-full">
+            <TerminalView
+              terminals={terminals}
+              activeTerminalId={activeTerminalId}
+              onSelectTerminal={setActiveTerminalId}
+              onAddTerminal={handleAddTerminal}
+              onCloseTerminal={handleCloseTerminal}
+              activeProject={activeProject}
+            />
           </div>
         )}
       </div>

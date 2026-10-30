@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { desktopApi } from "../services/api";
 
 function AnimatedAgentOutput({ text, animate }) {
   const [displayed, setDisplayed] = useState(animate ? "" : text);
@@ -43,13 +44,17 @@ function AnimatedAgentOutput({ text, animate }) {
 
 export default function AgentActivityCard({
   isRunning,
+  isInterrupted,
   currentStage,
   plan,
   actions,
   onCancel,
+  onDismiss,
   projectName,
   onApproveCommand,
-  onRejectCommand
+  onRejectCommand,
+  onContinueAnyway,
+  approvingStepId
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -68,222 +73,254 @@ export default function AgentActivityCard({
     };
   }, [isRunning]);
 
-  if (!isRunning && !plan && (!actions || actions.length === 0)) {
+  if (!isRunning && !isInterrupted && !plan && (!actions || actions.length === 0)) {
     return null;
   }
 
-  const steps = plan?.steps || [];
-  const activeAgent = steps.find((s) => s.status === "running")?.agent || "Chief Architect";
+  const allSteps = plan?.steps || [];
+  const hasError = allSteps.some((s) => s.status === "error");
 
   return (
-    <div className="w-full rounded-2xl border border-[#242428] bg-[#141416] text-xs text-[#f8fafc] overflow-hidden shadow-xl mb-4 select-none">
+    <div className="w-full rounded-2xl border border-[#27272a] bg-[#161619] sm:bg-[#18181b]/80 text-[#f4f4f5] overflow-hidden mb-3 select-none">
       <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between px-4 py-3 bg-[#18181c] border-b border-[#222226] cursor-pointer hover:bg-[#1d1d22] transition-colors"
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#202025]/50 transition-colors"
       >
-        <div className="flex items-center gap-3">
-          <span className="relative flex h-2.5 w-2.5">
-            {isRunning && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-            )}
-            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isRunning ? "bg-[#10b981]" : "bg-[#10b981]"}`}></span>
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-[13px] text-[#f4f4f5]">
+            {isRunning ? "Thinking..." : "Thinking"}
           </span>
-
-          <span className="font-medium text-xs text-[#f8fafc]">
-            {isRunning ? "Agent Workflow Active" : "Agent Workflow Completed"}
-          </span>
-
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#202026] border border-[#2c2c34] text-[11px] text-[#94a3b8]">
-            <i className="fa-solid fa-magnifying-glass text-[9px]"></i>
-            <span className="truncate max-w-[200px]">{projectName || "Active Workspace"}</span>
-            <i className="fa-solid fa-chevron-down text-[8px] ml-0.5"></i>
-          </div>
+          {isRunning && (
+            <span className="flex items-center gap-1.5 text-xs text-[#94a3b8] font-mono ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] animate-pulse"></span>
+              <span className="text-[11px] text-[#71717a]">{elapsedSeconds}s</span>
+            </span>
+          )}
+          {hasError && (
+            <span className="text-[11px] font-medium text-[#f87171] ml-1">
+              • Diagnostic
+            </span>
+          )}
+          {isInterrupted && (
+            <span className="text-[11px] font-medium text-[#fbbf24] ml-1">
+              • Interrupted
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {isRunning && onCancel && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancel();
+              }}
+              className="text-[11px] text-[#f87171] hover:text-[#ef4444] px-2.5 py-0.5 rounded border border-[#ef4444]/30 hover:bg-[#ef4444]/10 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <i className="fa-solid fa-square text-[8px]"></i>
+              <span>Stop</span>
+            </button>
+          )}
+
           <button
             type="button"
-            className="text-[11px] text-[#94a3b8] hover:text-[#f8fafc] flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-[#94a3b8] hover:text-[#f8fafc] p-1 transition-colors cursor-pointer"
+            aria-label="Toggle thinking"
           >
-            <span>{isExpanded ? "Yashirish" : "Batafsil"}</span>
-            <i className={`fa-solid fa-chevron-down text-[9px] transition-transform ${isExpanded ? "" : "-rotate-90"}`}></i>
+            <i className={`fa-solid fa-chevron-up text-xs transition-transform duration-200 ${isExpanded ? "" : "rotate-180"}`}></i>
           </button>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="p-4 bg-[#121214] space-y-4">
-          <div className="rounded-xl bg-[#18181c] border border-[#26262a] p-3.5 space-y-3">
-            <div className="flex items-center justify-between border-b border-[#242428] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#27272a] border border-[#3f3f46] flex items-center justify-center text-[#f8fafc]">
-                  <img src="/favicon.ico" alt="Emris" className="w-4 h-4 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-[#f8fafc]">{isRunning ? (activeAgent || "Autonomous Team") : "Autonomous Agent Team"}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#222228] text-[#94a3b8] border border-[#2e2e36] font-mono">
-                      Gemini 3.5 Flash Lite
-                    </span>
+        <div className="px-4 pb-4 pt-1 space-y-3.5">
+          {allSteps.map((st, idx) => {
+            const isRunningStep = st.status === "running";
+            const isDoneStep = st.status === "done";
+            const isInterruptedStep = st.status === "interrupted";
+            const isErrorStep = st.status === "error";
+            const cmdInfo = st.pending_command;
+
+            return (
+              <div key={st.id || idx} className="space-y-1.5">
+                <div className="flex items-start gap-3">
+                  <div className="w-4 pt-0.5 flex-shrink-0 flex items-center justify-center">
+                    {isDoneStep ? (
+                      <i className="fa-solid fa-check text-xs text-[#a1a1aa]"></i>
+                    ) : isRunningStep ? (
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.8)] animate-pulse"></span>
+                    ) : isErrorStep ? (
+                      <i className="fa-solid fa-circle-exclamation text-xs text-[#ef4444]"></i>
+                    ) : isInterruptedStep ? (
+                      <i className="fa-solid fa-circle-pause text-xs text-[#f59e0b]"></i>
+                    ) : (
+                      <span className="w-2 h-2 rounded-full bg-[#3f3f46]"></span>
+                    )}
                   </div>
-                  <p className="text-[11px] text-[#94a3b8] mt-0.5">Orchestrates architecture, code synthesis, and environment tasks.</p>
+
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[13px] font-medium leading-snug ${isDoneStep ? "text-[#f4f4f5]" : isRunningStep ? "text-[#f8fafc]" : isErrorStep ? "text-[#fca5a5]" : "text-[#71717a]"}`}>
+                      {st.title || st.description}
+                    </div>
+                    {(st.subtitle || st.description) && (
+                      <div className="text-xs text-[#94a3b8] leading-relaxed mt-0.5">
+                        {st.subtitle || st.description}
+                      </div>
+                    )}
+
+                    {isRunningStep && st.output && (
+                      <div className="mt-1.5 p-2 rounded-lg bg-[#111114] border border-[#222226]">
+                        <AnimatedAgentOutput text={st.output} animate={isRunningStep} />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {isRunning && onCancel && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCancel();
-                  }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#f87171] hover:bg-[#ef4444]/10 border border-[#ef4444]/30 transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <i className="fa-solid fa-square text-[9px]"></i>
-                  <span>Stop</span>
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-2 pt-1">
-              {steps.map((st, idx) => {
-                const isRunningStep = st.status === "running";
-                const isDoneStep = st.status === "done";
-                const cmdInfo = st.pending_command;
-
-                return (
-                  <div
-                    key={st.id || idx}
-                    className={`flex flex-col p-3 rounded-xl border transition-all ${
-                      isRunningStep
-                        ? "bg-[#1c1c22] border-[#3b82f6]/40 shadow-sm"
-                        : isDoneStep
-                        ? "bg-[#161619] border-[#222226]"
-                        : "bg-[#141416]/40 border-[#1f1f23] opacity-60"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between w-full">
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div className="mt-0.5 flex-shrink-0">
-                          {isDoneStep ? (
-                            <div className="w-5 h-5 rounded-full bg-[#10b981]/20 border border-[#10b981]/50 flex items-center justify-center text-[#10b981]">
-                              <i className="fa-solid fa-check text-[10px]"></i>
-                            </div>
-                          ) : isRunningStep ? (
-                            <div className="w-5 h-5 rounded-full border-2 border-[#3b82f6] border-t-transparent animate-spin"></div>
-                          ) : (
-                            <div className="w-5 h-5 rounded-full border border-[#3f3f46] flex items-center justify-center">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#3f3f46]"></div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs font-semibold truncate ${isDoneStep || isRunningStep ? "text-[#f8fafc]" : "text-[#94a3b8]"}`}>
-                              {st.title || st.description}
-                            </span>
-                            {st.agent && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#202026] text-[#94a3b8] font-mono border border-[#2c2c34] flex-shrink-0">
-                                {st.agent}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-[#94a3b8] mt-0.5 truncate">
-                            {st.subtitle || st.description}
-                          </p>
-
-                          {(isRunningStep || isDoneStep) && st.output && (
-                            <div className="mt-2 p-2 rounded-lg bg-[#0f0f12] border border-[#222226]">
-                              <AnimatedAgentOutput text={st.output} animate={isRunningStep} />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex-shrink-0 ml-3 text-[11px] font-mono text-[#64748b]">
-                        {isDoneStep ? (
-                          <span>{`${10 + (idx * 12)}s`}</span>
-                        ) : isRunningStep ? (
-                          <span className="text-[#3b82f6] font-medium">{`${elapsedSeconds}s`}</span>
-                        ) : (
-                          <span>—</span>
-                        )}
-                      </div>
+                {cmdInfo && (
+                  <div className="ml-7 mt-2 p-3 rounded-xl bg-[#0f0f13] border border-[#26262b] shadow-inner space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="flex items-center gap-1.5 text-[#eab308]">
+                        <i className="fa-solid fa-shield-halved text-[9px]"></i>
+                        <span>Terminal Command Approval</span>
+                      </span>
+                      {cmdInfo.display_cwd && (
+                        <span className="px-1.5 py-0.5 rounded bg-[#18181c] border border-[#27272a] text-[#a1a1aa]">
+                          cwd: {cmdInfo.display_cwd}
+                        </span>
+                      )}
                     </div>
 
-                    {cmdInfo && (
-                      <div className="mt-3 p-3 rounded-xl bg-[#0a0a0c] border border-[#26262b] shadow-inner space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-mono">
-                          <span className="flex items-center gap-1.5 text-[#eab308]">
-                            <i className="fa-solid fa-shield-halved text-[9px]"></i>
-                            <span>Terminal Command Approval</span>
-                          </span>
-                          {cmdInfo.display_cwd && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#18181c] border border-[#27272a] text-[#a1a1aa]">
-                              cwd: {cmdInfo.display_cwd}
-                            </span>
-                          )}
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-[#141417] border border-[#222226] font-mono text-[11px] text-[#38bdf8] select-text">
+                      <span className="text-[#64748b]">$</span>
+                      <span className="font-semibold">{cmdInfo.command}</span>
+                    </div>
+
+                    {cmdInfo.execution_output && (
+                      <div className="p-2.5 rounded-lg bg-[#050506] border border-[#202024] font-mono text-[11px] text-[#a1a1aa] whitespace-pre-wrap max-h-40 overflow-y-auto custom-scrollbar">
+                        {cmdInfo.execution_output}
+                      </div>
+                    )}
+
+                    {st.inspector_diagnosis && (
+                      <div className="w-full p-2.5 rounded-lg bg-[#181414] border border-[#ef4444]/40 text-[#fca5a5] text-[11px] space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-semibold text-[#f87171]">
+                          <i className="fa-solid fa-user-shield text-[10px]"></i>
+                          <span>Inspector Agent Diagnosis</span>
                         </div>
-
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-[#141417] border border-[#222226] font-mono text-[11px] text-[#38bdf8] select-text">
-                          <span className="text-[#64748b]">$</span>
-                          <span className="font-semibold">{cmdInfo.command}</span>
-                        </div>
-
-                        {cmdInfo.execution_output && (
-                          <div className="p-2.5 rounded-lg bg-[#050506] border border-[#202024] font-mono text-[11px] text-[#a1a1aa] whitespace-pre-wrap max-h-40 overflow-y-auto custom-scrollbar">
-                            {cmdInfo.execution_output}
-                          </div>
-                        )}
-
-                        {cmdInfo.pending_approval && onApproveCommand && (
-                          <div className="flex items-center gap-2 pt-1">
+                        <p className="text-[#cbd5e1]">{st.inspector_diagnosis}</p>
+                        {st.inspector_fix && (
+                          <div className="mt-2 flex items-center justify-between gap-2 pt-1.5 border-t border-[#ef4444]/20">
+                            <code className="text-[10px] text-[#38bdf8] font-mono truncate">{st.inspector_fix}</code>
                             <button
                               type="button"
-                              onClick={() => onApproveCommand(cmdInfo, st.id)}
-                              className="px-3 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onApproveCommand) {
+                                  onApproveCommand({ ...cmdInfo, command: st.inspector_fix }, st.id);
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] font-medium flex-shrink-0 transition-colors cursor-pointer"
                             >
-                              <i className="fa-solid fa-play text-[9px]"></i>
-                              <span>Approve & Run</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onRejectCommand && onRejectCommand(cmdInfo, st.id)}
-                              className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-[#cbd5e1] text-xs font-medium transition-colors cursor-pointer"
-                            >
-                              <span>Skip</span>
+                              Apply Inspector Fix
                             </button>
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {actions && actions.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] px-1">
-                Dispatched Actions
-              </div>
-              <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                {actions.map((act, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#18181c] border border-[#242428] text-[11px]">
-                    <div className="flex items-center gap-2 font-mono truncate mr-2">
-                      <span className="text-[10px] text-[#3b82f6]">{act.agent || act.action}:</span>
-                      <span className="text-[#cbd5e1] truncate">{act.command || act.target}</span>
-                    </div>
-                    <span className="text-[10px] text-[#10b981] font-mono flex-shrink-0">
-                      {act.pending_approval ? "APPROVAL" : "OK"}
-                    </span>
+                    {cmdInfo.exit_code !== undefined && !cmdInfo.pending_approval && (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {cmdInfo.exit_code === 0 ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#10b981]/15 border border-[#10b981]/30 text-[#10b981] text-[10px] font-mono font-medium">
+                            <i className="fa-solid fa-check text-[9px]"></i>
+                            <span>Execution Verified (Exit 0)</span>
+                          </span>
+                        ) : (
+                          <>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#ef4444]/15 border border-[#ef4444]/30 text-[#f87171] text-[10px] font-mono font-medium">
+                              <i className="fa-solid fa-triangle-exclamation text-[9px]"></i>
+                              <span>Failed (Exit code: {cmdInfo.exit_code})</span>
+                            </span>
+                            {onContinueAnyway && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onContinueAnyway(st.id);
+                                }}
+                                className="px-2.5 py-1 rounded bg-[#3b82f6]/20 hover:bg-[#3b82f6]/30 border border-[#3b82f6]/40 text-[#60a5fa] text-[11px] font-medium transition-colors cursor-pointer"
+                              >
+                                <span>Proceed Anyway</span>
+                              </button>
+                            )}
+                            {onApproveCommand && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onApproveCommand(cmdInfo, st.id);
+                                }}
+                                className="px-2.5 py-1 rounded bg-[#27272a] hover:bg-[#3f3f46] text-[#cbd5e1] text-[11px] font-medium transition-colors cursor-pointer"
+                              >
+                                <span>Retry</span>
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {cmdInfo.pending_approval && onApproveCommand && (
+                      <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                        {approvingStepId === st.id ? (
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await desktopApi.stopCommand();
+                              } catch (err) {
+                                console.error("[AgentActivityCard] Stop command error:", err);
+                              }
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer"
+                          >
+                            <i className="fa-solid fa-stop text-[9px]"></i>
+                            <span>Stop Execution</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={Boolean(approvingStepId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onApproveCommand(cmdInfo, st.id);
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <i className="fa-solid fa-play text-[9px]"></i>
+                            <span>Approve & Run</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={approvingStepId === st.id || Boolean(approvingStepId)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onRejectCommand) onRejectCommand(cmdInfo, st.id);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-[#cbd5e1] text-xs font-medium transition-colors cursor-pointer disabled:opacity-40"
+                        >
+                          <span>Skip</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
     </div>

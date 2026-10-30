@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -13,6 +14,42 @@ DISALLOWED_COMMAND_PATTERNS = [
     r"\brmdir\s+.*[c-zC-Z]:\\",
     r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;",
 ]
+
+DAEMON_COMMAND_PATTERNS = [
+    r"\bnpm\s+run\s+dev\b",
+    r"\bnpm\s+start\b",
+    r"\bpnpm\s+(?:run\s+)?dev\b",
+    r"\bpnpm\s+start\b",
+    r"\byarn\s+dev\b",
+    r"\byarn\s+start\b",
+    r"\bbun\s+(?:run\s+)?dev\b",
+    r"\bnext\s+dev\b",
+    r"\bvite\b",
+    r"\bhttp\.server\b",
+    r"\buvicorn\b",
+    r"\bgunicorn\b",
+    r"\bflask\s+run\b",
+    r"\bpython(?:\.exe)?\s+(?:.*[/\\])?(?:app|main|server|run|manage)\.py\b",
+    r"\bpython(?:\.exe)?\s+-m\s+(?:flask|http\.server|uvicorn)\b",
+    r"\b(?:live-server|serve|nodemon)\b",
+]
+
+active_processes = {}
+
+
+def normalize_command(command: str) -> tuple[str, bool]:
+    clean = command.strip()
+    is_explicit_bg = False
+    lower = clean.lower()
+    if lower.startswith("$start ") or lower.startswith("start "):
+        clean = re.sub(r"^\$?start\s+", "", clean, flags=re.IGNORECASE).strip()
+        is_explicit_bg = True
+    elif clean.startswith("$"):
+        clean = clean[1:].strip()
+    elif re.match(r"^cmd(?:\.exe)?\s+/c\s+start\s+", clean, re.IGNORECASE):
+        clean = re.sub(r"^cmd(?:\.exe)?\s+/c\s+start\s+", "", clean, flags=re.IGNORECASE).strip()
+        is_explicit_bg = True
+    return clean, is_explicit_bg
 
 
 def is_command_safe(command: str) -> tuple[bool, str]:
@@ -39,6 +76,62 @@ def is_path_jailed(target_path: str, workspace_root: str) -> bool:
         return False
 
 
+def is_daemon_command(command: str) -> bool:
+    try:
+        lower = command.lower().strip()
+        if lower.startswith("start ") or lower.startswith("$start "):
+            return True
+        if any(re.search(pat, lower) for pat in DAEMON_COMMAND_PATTERNS):
+            return True
+        if re.search(r"\bpython(?:\.exe)?\s+\S+\.py\b", lower) and any(k in lower for k in ["app.py", "server.py", "main.py", "runserver"]):
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def stop_shell_process(process_id: str = None) -> dict:
+    try:
+        stopped = []
+        target_keys = [process_id] if process_id and process_id in active_processes else list(active_processes.keys())
+        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        for pid_key in target_keys:
+            proc = active_processes.get(pid_key)
+            if proc:
+                try:
+                    subprocess.run(f"taskkill /F /T /PID {proc.pid}", shell=True, capture_output=True, creationflags=flags)
+                    stopped.append(pid_key)
+                except Exception as k_err:
+                    print(f"[Terminal] Kill error on PID {proc.pid}: {k_err}")
+                active_processes.pop(pid_key, None)
+        print(f"[Terminal] Stopped active processes: {stopped}")
+        return {"success": True, "stopped": stopped}
+    except Exception as exc:
+        print(f"[Terminal] stop_shell_process error: {exc}")
+        return {"success": False, "error": str(exc)}
+
+
+def get_active_shell_processes() -> list:
+    try:
+        active = []
+        for pid_key in list(active_processes.keys()):
+            proc = active_processes.get(pid_key)
+            if proc and proc.poll() is None:
+                active.append({
+                    "process_id": pid_key,
+                    "pid": proc.pid,
+                    "command": getattr(proc, "_raw_cmd", f"PID {proc.pid}"),
+                    "cwd": getattr(proc, "_raw_cwd", ""),
+                    "start_time": getattr(proc, "_start_time", time.time())
+                })
+            elif proc:
+                active_processes.pop(pid_key, None)
+        return active
+    except Exception as exc:
+        print(f"[Terminal] get_active_shell_processes error: {exc}")
+        return []
+
+
 def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> dict:
     try:
         safe, reason = is_command_safe(command)
@@ -52,26 +145,65 @@ def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> d
             }
 
         target_cwd = cwd if cwd and os.path.exists(cwd) else os.getcwd()
-        print(f"[Terminal] Executing command in [{target_cwd}]: {command}")
+        raw_cmd = command.strip()
+        cmd_to_run, explicit_bg = normalize_command(raw_cmd)
+        is_daemon = explicit_bg or is_daemon_command(cmd_to_run)
 
-        process = subprocess.run(
-            command,
+        print(f"[Terminal] Executing command in [{target_cwd}]: {cmd_to_run} (daemon: {is_daemon})")
+
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        process = subprocess.Popen(
+            cmd_to_run,
             shell=True,
             cwd=target_cwd,
             text=True,
-            capture_output=True,
-            timeout=timeout
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=creationflags
         )
+        process._raw_cmd = raw_cmd
+        process._raw_cwd = target_cwd
+        process._start_time = time.time()
+        pid_key = str(process.pid)
+        active_processes[pid_key] = process
 
-        stdout = process.stdout or ""
-        stderr = process.stderr or ""
+        if is_daemon:
+            time.sleep(1.5)
+            if process.poll() is None:
+                print(f"[Terminal] Background task active (PID {process.pid}): {cmd_to_run}")
+                return {
+                    "success": True,
+                    "stdout": f"Background process active (PID: {process.pid})\nCommand: {cmd_to_run}\nWorking Directory: {target_cwd}",
+                    "stderr": "",
+                    "exit_code": 0,
+                    "process_id": pid_key,
+                    "is_running": True
+                }
+            else:
+                out, err = process.communicate()
+                active_processes.pop(pid_key, None)
+                return {
+                    "success": process.returncode == 0,
+                    "stdout": (out or "").strip(),
+                    "stderr": (err or "").strip(),
+                    "exit_code": process.returncode,
+                    "process_id": pid_key,
+                    "is_running": False
+                }
+
+        stdout, stderr = process.communicate(timeout=timeout)
+        active_processes.pop(pid_key, None)
+        stdout = stdout or ""
+        stderr = stderr or ""
         print(f"[Terminal] Command completed with exit code: {process.returncode}")
 
         return {
             "success": process.returncode == 0,
             "stdout": stdout,
             "stderr": stderr,
-            "exit_code": process.returncode
+            "exit_code": process.returncode,
+            "process_id": pid_key,
+            "is_running": False
         }
     except subprocess.TimeoutExpired:
         print(f"[Terminal] Command timed out after {timeout} seconds: {command}")

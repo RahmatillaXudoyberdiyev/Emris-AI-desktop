@@ -215,10 +215,10 @@ export default function MarkdownRenderer({ content = "" }) {
 
           if (block.type === "heading") {
             if (block.level === 1) {
-              return <h1 key={idx} className="text-base sm:text-lg font-bold text-[#f8fafc] pt-2 pb-1 border-b border-[#27272a]">{renderInline(block.text)}</h1>;
+              return <h1 key={idx} className="text-base sm:text-lg font-bold text-[#f8fafc] pt-2 pb-1">{renderInline(block.text)}</h1>;
             }
             if (block.level === 2) {
-              return <h2 key={idx} className="text-sm sm:text-base font-semibold text-[#f8fafc] pt-2">{renderInline(block.text)}</h2>;
+              return <h2 key={idx} className="text-sm sm:text-base font-semibold text-[#f8fafc] pt-2 pb-0.5">{renderInline(block.text)}</h2>;
             }
             if (block.level === 3) {
               return <h3 key={idx} className="text-xs sm:text-sm font-semibold text-[#f1f5f9] pt-1.5">{renderInline(block.text)}</h3>;

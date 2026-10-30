@@ -155,22 +155,23 @@ class DatabaseManager:
             print(f"[DB] Error fetching conversations: {exc}")
             return []
 
-    def create_conversation(self, title: str, project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
+    def create_conversation(self, title: str = "New chat", project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
         try:
             conv_id = str(uuid.uuid4())[:8]
             now = datetime.utcnow().isoformat()
+            t_clean = (title or "New chat").strip()
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO conversations (id, project_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?);",
-                    (conv_id, project_id, title.strip(), model, now, now)
+                    (conv_id, project_id, t_clean, model, now, now)
                 )
                 conn.commit()
-                print(f"[DB] Conversation created: {title} ({conv_id})")
+                print(f"[DB] Conversation created: {t_clean} ({conv_id})")
                 return {
                     "id": conv_id,
                     "project_id": project_id,
-                    "title": title,
+                    "title": t_clean,
                     "model": model,
                     "created_at": now,
                     "updated_at": now
