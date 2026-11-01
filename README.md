@@ -1,7 +1,8 @@
 # Emris AI Desktop App — v1.2 Beta
 
 [![Version](https://img.shields.io/badge/version-v1.2--Beta-blue.svg)](https://github.com/RahmatillaXudoyberdiyev/Emris-AI-desktop/releases)
-[![Sponsor](https://img.shields.io/badge/sponsor-support%20project-ff69b4.svg)](https://github.com/sponsors/RahmatillaXudoyberdiyev)
+[![Sponsors & Backers](https://img.shields.io/badge/sponsors-become%20a%20backer-ff69b4.svg)](SPONSORS.md)
+[![Investments & Grants](https://img.shields.io/badge/investment-angel%20%26%20grants-brightgreen.svg)](SPONSORS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![React](https://img.shields.io/badge/React-18.3-61dafb.svg)](https://react.dev/)
@@ -169,15 +170,15 @@ Emris-AI-desktop/
 
 ---
 
-## Support & Sponsorship
+## Sponsoring & Investment
 
-If you find Emris AI Desktop valuable for your engineering workflow and would like to support ongoing development, maintenance, and new capabilities, contributions are warmly welcomed:
+We are actively building Emris AI Desktop as an open-source, ultra-lightweight alternative to heavy AI code editors. We invite individual developers, corporate sponsors, and angel investors to help accelerate our development:
 
-* **GitHub Sponsors**: [github.com/sponsors/RahmatillaXudoyberdiyev](https://github.com/sponsors/RahmatillaXudoyberdiyev)
-* **Website**: [rahmatilla.uz](https://rahmatilla.uz)
-* **Platform**: [SuniyIntellekt.uz](https://suniyintellekt.uz)
-
-Your support helps cover API testing infrastructure, automated builds, and open-source feature development.
+* **[Read Full Sponsorship & Investment Tiers (SPONSORS.md)](SPONSORS.md)**
+* **Individual Backers**: Support ongoing open-source engineering (\$5 – \$25 / mo).
+* **Corporate & Strategic Sponsors**: Feature your company logo in the README and docs, with priority issue triage and direct maintainer communication (\$100 – \$1,000+ / mo).
+* **Angel Investors & Strategic Grants**: We are actively welcoming angel investors, AI research grants, and compute partnerships. Let's discuss roadmap, equity, or strategic integration.
+* **Direct Inquiries**: [xudoyberdiyevrahmatilla@gmail.com](mailto:xudoyberdiyevrahmatilla@gmail.com?subject=Emris%20AI%20Sponsorship%20%2F%20Investment%20Inquiry) or [@rahmatilla_uz](https://t.me/rahmatilla_uz) on Telegram.
 
 ---
 
