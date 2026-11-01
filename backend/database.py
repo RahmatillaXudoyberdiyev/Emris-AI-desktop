@@ -241,6 +241,32 @@ class DatabaseManager:
             print(f"[DB] Error adding message: {exc}")
             return None
 
+    def truncate_messages_from(self, conversation_id: str, message_id: str):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT created_at FROM messages WHERE conversation_id = ? AND id = ?;",
+                    (conversation_id, message_id)
+                )
+                row = cursor.fetchone()
+                if row:
+                    target_time = row["created_at"]
+                    cursor.execute(
+                        "DELETE FROM messages WHERE conversation_id = ? AND created_at >= ?;",
+                        (conversation_id, target_time)
+                    )
+                else:
+                    cursor.execute(
+                        "DELETE FROM messages WHERE conversation_id = ? AND id = ?;",
+                        (conversation_id, message_id)
+                    )
+                conn.commit()
+                return {"success": True}
+        except Exception as exc:
+            print(f"[DB] truncate_messages_from error: {exc}")
+            return {"success": False, "error": str(exc)}
+
     def get_setting(self, key: str, default: str = ""):
         try:
             with self._get_connection() as conn:

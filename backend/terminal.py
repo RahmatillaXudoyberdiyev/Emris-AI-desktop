@@ -1,5 +1,6 @@
 import os
 import re
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -50,6 +51,41 @@ def normalize_command(command: str) -> tuple[str, bool]:
         clean = re.sub(r"^cmd(?:\.exe)?\s+/c\s+start\s+", "", clean, flags=re.IGNORECASE).strip()
         is_explicit_bg = True
     return clean, is_explicit_bg
+
+
+def prepare_virtualenv_execution(command: str, cwd: str) -> tuple[str, dict]:
+    env = os.environ.copy()
+    if not cwd or not os.path.exists(cwd):
+        return command, env
+    root = Path(cwd)
+    venv_dir = None
+    for name in [".venv", "venv"]:
+        cand = root / name
+        if cand.exists() and cand.is_dir():
+            venv_dir = cand
+            break
+    if not venv_dir:
+        return command, env
+
+    scripts_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
+    if not scripts_dir.exists():
+        return command, env
+
+    env["PATH"] = str(scripts_dir) + os.pathsep + env.get("PATH", "")
+    env["VIRTUAL_ENV"] = str(venv_dir)
+
+    rewritten = command.strip()
+    sep = "\\" if os.name == "nt" else "/"
+    rel_scripts = f".{sep}{venv_dir.name}{sep}Scripts" if os.name == "nt" else f"./{venv_dir.name}/bin"
+
+    for tool in ["python", "pip", "flask", "pytest", "uvicorn"]:
+        pat = rf"^\$?{tool}(?:\.exe)?(\s+.*|$)"
+        m = re.match(pat, rewritten, re.IGNORECASE)
+        if m:
+            rest = m.group(1)
+            rewritten = f"{rel_scripts}{sep}{tool}{rest}"
+            break
+    return rewritten, env
 
 
 def is_command_safe(command: str) -> tuple[bool, str]:
@@ -111,6 +147,49 @@ def stop_shell_process(process_id: str = None) -> dict:
         return {"success": False, "error": str(exc)}
 
 
+def check_local_port_active(port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.12)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+    except Exception:
+        return False
+
+
+def get_workspace_background_context(workspace_root: str = None) -> str:
+    try:
+        active_procs = get_active_shell_processes()
+        lines = []
+        if active_procs:
+            for p in active_procs:
+                lines.append(f"- Active Process PID {p.get('pid')}: `{p.get('command')}` (CWD: `{p.get('cwd')}`)")
+
+        common_ports = [
+            (5000, "Flask / Web Application"),
+            (8000, "Uvicorn / FastAPI / HTTP Server"),
+            (3000, "Next.js / Node Server"),
+            (5173, "Vite Dev Server"),
+            (8080, "Web Server")
+        ]
+        listening = []
+        for port, service in common_ports:
+            if check_local_port_active(port):
+                listening.append(f"- Listening Service on port {port}: {service} (http://127.0.0.1:{port})")
+
+        if not lines and not listening:
+            return "No background tasks or server processes currently running in this workspace."
+
+        result = []
+        if lines:
+            result.append("ACTIVE BACKGROUND SHELL PROCESSES:\n" + "\n".join(lines))
+        if listening:
+            result.append("ACTIVE LOCAL NETWORK SERVICES:\n" + "\n".join(listening))
+        return "\n\n".join(result)
+    except Exception as exc:
+        print(f"[Terminal] get_workspace_background_context error: {exc}")
+        return "No background tasks currently running."
+
+
 def get_active_shell_processes() -> list:
     try:
         active = []
@@ -147,6 +226,7 @@ def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> d
         target_cwd = cwd if cwd and os.path.exists(cwd) else os.getcwd()
         raw_cmd = command.strip()
         cmd_to_run, explicit_bg = normalize_command(raw_cmd)
+        cmd_to_run, proc_env = prepare_virtualenv_execution(cmd_to_run, target_cwd)
         is_daemon = explicit_bg or is_daemon_command(cmd_to_run)
 
         print(f"[Terminal] Executing command in [{target_cwd}]: {cmd_to_run} (daemon: {is_daemon})")
@@ -156,6 +236,7 @@ def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> d
             cmd_to_run,
             shell=True,
             cwd=target_cwd,
+            env=proc_env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -184,6 +184,13 @@ class DesktopBridge:
             print(f"[Desktop] add_message error: {exc}")
             return None
 
+    def truncate_messages_from(self, conversation_id: str, message_id: str):
+        try:
+            return db.truncate_messages_from(conversation_id, message_id)
+        except Exception as exc:
+            print(f"[Desktop] truncate_messages_from error: {exc}")
+            return {"success": False, "error": str(exc)}
+
     def get_setting(self, key: str, default: str = ""):
         try:
             return db.get_setting(key, default)
@@ -402,7 +409,7 @@ def launch_desktop_window():
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Desktop App — v1.1 Beta",
+            title="Emris AI Desktop App — v1.2 Beta",
             url=target_url,
             width=1360,
             height=860,

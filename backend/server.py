@@ -233,6 +233,13 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(msg)
                 return
 
+            if path == "/api/truncate_messages":
+                conv_id = body.get("conversation_id")
+                msg_id = body.get("message_id")
+                res = db.truncate_messages_from(conv_id, msg_id)
+                self._send_json(res)
+                return
+
             if path == "/api/run_command":
                 cmd = body.get("command", "")
                 cwd = body.get("cwd")

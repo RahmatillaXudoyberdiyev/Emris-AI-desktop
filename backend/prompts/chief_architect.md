@@ -17,6 +17,9 @@ Your responsibility is to analyze the user's goal, evaluate the active workspace
 {functions_index}
 ```
 
+### Active Background Tasks & Services
+{background_tasks}
+
 ## Recent Conversation Context
 ```text
 {conversation_context}

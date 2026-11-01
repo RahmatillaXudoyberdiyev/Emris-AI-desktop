@@ -100,8 +100,18 @@ def generate_with_gemini_direct(prompt: str, model: str = "gemini-3.5-flash-lite
             data = json.loads(resp.read().decode("utf-8"))
             candidate = data.get("candidates", [{}])[0]
             text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+            usage = data.get("usageMetadata", {})
+            tokens = {
+                "total": usage.get("totalTokenCount", 0),
+                "prompt": usage.get("promptTokenCount", 0),
+                "completion": usage.get("candidatesTokenCount", 0)
+            }
             if text:
-                return {"success": True, "data": {"response": text, "text": text}}
+                return {
+                    "success": True,
+                    "tokens": tokens,
+                    "data": {"response": text, "text": text, "tokens": tokens}
+                }
         return {"success": False, "error": "Empty response from Gemini"}
     except Exception as exc:
         print(f"[Gateway] Gemini direct error: {exc}")
@@ -137,8 +147,18 @@ def generate_with_groq_direct(prompt: str, model: str = "llama-3.3-70b-versatile
             data = json.loads(resp.read().decode("utf-8"))
             choice = data.get("choices", [{}])[0]
             text = choice.get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+            tokens = {
+                "total": usage.get("total_tokens", 0),
+                "prompt": usage.get("prompt_tokens", 0),
+                "completion": usage.get("completion_tokens", 0)
+            }
             if text:
-                return {"success": True, "data": {"response": text, "text": text}}
+                return {
+                    "success": True,
+                    "tokens": tokens,
+                    "data": {"response": text, "text": text, "tokens": tokens}
+                }
         return {"success": False, "error": "Empty response from Groq"}
     except Exception as exc:
         print(f"[Gateway] Groq fallback error: {exc}")
@@ -152,6 +172,185 @@ def request_generate(prompt: str, model: str = "gemini-3.5-flash-lite", history:
 
     groq_res = generate_with_groq_direct(prompt, "llama-3.3-70b-versatile", history)
     if groq_res.get("success") and groq_res.get("data"):
+        return groq_res
+
+    return gem_res
+
+
+def generate_with_gemini_tools(contents: list, tools: list = None, model: str = "gemini-3.5-flash-lite") -> dict:
+    try:
+        api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("EMRIS_DESKTOP_GEMINI_KEY", "")
+        if not api_key:
+            return {"success": False, "error": "No GEMINI_API_KEY configured"}
+        model_name = "gemini-3.5-flash-lite"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        payload = {
+            "contents": contents,
+            "generationConfig": {"temperature": 0.2}
+        }
+        if tools:
+            payload["tools"] = tools
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if not candidates:
+                return {"success": False, "error": "Empty candidates from Gemini"}
+            cand = candidates[0]
+            parts = cand.get("content", {}).get("parts", [])
+            tool_calls = []
+            text_parts = []
+            for p in parts:
+                if "functionCall" in p:
+                    fc = p["functionCall"]
+                    tool_calls.append({
+                        "name": fc.get("name", ""),
+                        "args": fc.get("args", {}),
+                        "id": fc.get("id", "")
+                    })
+                elif "text" in p:
+                    text_parts.append(p.get("text", ""))
+            raw_text = "".join(text_parts)
+            usage = data.get("usageMetadata", {})
+            tokens = {
+                "total": usage.get("totalTokenCount", 0),
+                "prompt": usage.get("promptTokenCount", 0),
+                "completion": usage.get("candidatesTokenCount", 0)
+            }
+            return {
+                "success": True,
+                "parts": parts,
+                "tool_calls": tool_calls,
+                "text": raw_text,
+                "tokens": tokens,
+                "data": {"response": raw_text, "text": raw_text, "tokens": tokens}
+            }
+    except Exception as exc:
+        print(f"[Gateway] Gemini tools error: {exc}")
+        return {"success": False, "error": str(exc)}
+
+
+def generate_with_groq_tools(contents: list, tools: list = None, model: str = "llama-3.3-70b-versatile") -> dict:
+    try:
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            return {"success": False, "error": "No GROQ_API_KEY configured"}
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        msgs = []
+        for c in contents:
+            role = c.get("role", "user")
+            parts = c.get("parts", [])
+            for p in parts:
+                if "text" in p:
+                    msgs.append({"role": role if role in ("user", "assistant", "system") else ("assistant" if role == "model" else "user"), "content": p["text"]})
+                elif "functionCall" in p:
+                    fc = p["functionCall"]
+                    msgs.append({
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [{
+                            "id": fc.get("id") or "call_1",
+                            "type": "function",
+                            "function": {"name": fc.get("name", ""), "arguments": json.dumps(fc.get("args", {}))}
+                        }]
+                    })
+                elif "functionResponse" in p:
+                    fr = p["functionResponse"]
+                    msgs.append({
+                        "role": "tool",
+                        "tool_call_id": fr.get("id") or "call_1",
+                        "content": json.dumps(fr.get("response", {}))
+                    })
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": msgs,
+            "temperature": 0.2
+        }
+        if tools and len(tools) > 0 and "function_declarations" in tools[0]:
+            groq_tools = []
+            for fd in tools[0]["function_declarations"]:
+                groq_tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": fd.get("name", ""),
+                        "description": fd.get("description", ""),
+                        "parameters": {
+                            "type": "object",
+                            "properties": fd.get("parameters", {}).get("properties", {}),
+                            "required": fd.get("parameters", {}).get("required", [])
+                        }
+                    }
+                })
+            payload["tools"] = groq_tools
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {groq_key}"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            choice = data.get("choices", [{}])[0]
+            msg = choice.get("message", {})
+            raw_text = msg.get("content") or ""
+            raw_tc = msg.get("tool_calls") or []
+            tool_calls = []
+            parts = []
+            if raw_text:
+                parts.append({"text": raw_text})
+            for tc in raw_tc:
+                fn = tc.get("function", {})
+                args = {}
+                try:
+                    args = json.loads(fn.get("arguments", "{}"))
+                except Exception:
+                    pass
+                tool_calls.append({
+                    "name": fn.get("name", ""),
+                    "args": args,
+                    "id": tc.get("id", "")
+                })
+                parts.append({
+                    "functionCall": {
+                        "name": fn.get("name", ""),
+                        "args": args,
+                        "id": tc.get("id", "")
+                    }
+                })
+            usage = data.get("usage", {})
+            tokens = {
+                "total": usage.get("total_tokens", 0),
+                "prompt": usage.get("prompt_tokens", 0),
+                "completion": usage.get("completion_tokens", 0)
+            }
+            return {
+                "success": True,
+                "parts": parts,
+                "tool_calls": tool_calls,
+                "text": raw_text,
+                "tokens": tokens,
+                "data": {"response": raw_text, "text": raw_text, "tokens": tokens}
+            }
+    except Exception as exc:
+        print(f"[Gateway] Groq tools error: {exc}")
+        return {"success": False, "error": str(exc)}
+
+
+def request_generate_with_tools(contents: list, tools: list = None, model: str = "gemini-3.5-flash-lite") -> dict:
+    gem_res = generate_with_gemini_tools(contents, tools, model)
+    if gem_res.get("success"):
+        return gem_res
+
+    groq_res = generate_with_groq_tools(contents, tools, "llama-3.3-70b-versatile")
+    if groq_res.get("success"):
         return groq_res
 
     return gem_res

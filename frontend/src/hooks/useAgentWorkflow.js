@@ -62,21 +62,53 @@ export function useAgentWorkflow({
     if (id) updateAgentState(id, null);
   };
 
-  const finalizeWorkflowCycle = async (convId, updatedSteps, executedActions, pendingReply) => {
+  const finalizeWorkflowCycle = async (convId, updatedSteps, executedActions, pendingReply, cycleTokens = null) => {
     try {
       isSubmittingRef.current = false;
+      const safeActions = (executedActions || []).map((a) => {
+        let rawRes = a.result;
+        if (typeof rawRes === "string") {
+          try {
+            rawRes = JSON.parse(rawRes);
+          } catch (e) {
+            rawRes = { message: rawRes.slice(0, 100) };
+          }
+        }
+        const cleanRes = rawRes ? {
+          success: rawRes.success,
+          path: rawRes.path,
+          total_lines: rawRes.total_lines,
+          start_line: rawRes.start_line,
+          end_line: rawRes.end_line,
+          l_start: rawRes.l_start,
+          l_finish: rawRes.l_finish,
+          message: rawRes.message,
+          error: rawRes.error
+        } : null;
+        return {
+          agent: a.agent,
+          action: a.action,
+          target: a.target,
+          l_start: a.l_start,
+          l_finish: a.l_finish,
+          result: cleanRes
+        };
+      });
+
       const completedWorkflow = {
         plan: {
           chief_thought: "Multi-agent workflow executed successfully.",
           steps: updatedSteps.map((s) => ({ ...s, status: "done" }))
         },
-        actions: executedActions
+        actions: safeActions,
+        tokens: cycleTokens || null
       };
       updateAgentState(convId, null);
       const replyText = pendingReply || "Topshiriq muvaffaqiyatli bajarildi.";
-      const persisted = `<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;
+      const tokensHeader = cycleTokens?.total ? `<!--tokens:${JSON.stringify(cycleTokens)}-->\n` : "";
+      const persisted = `${tokensHeader}<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;
       const savedMsg = await desktopApi.addMessage(convId, "assistant", persisted);
-      const replyMsg = savedMsg || { id: "asst_" + Date.now(), conversation_id: convId, role: "assistant", content: persisted };
+      const replyMsg = savedMsg || { id: "asst_" + Date.now(), conversation_id: convId, role: "assistant", content: persisted, tokens: cycleTokens };
       setMessages((prev) => {
         const withoutDup = (prev || []).filter((m) => m.id !== replyMsg.id);
         return [...withoutDup, replyMsg];
@@ -89,7 +121,7 @@ export function useAgentWorkflow({
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const resumeWorkflowFromStep = async (convId, steps, startIndex, executedActions, pendingReply, workspaceRoot) => {
+  const resumeWorkflowFromStep = async (convId, steps, startIndex, executedActions, pendingReply, workspaceRoot, pendingTokens = null) => {
     try {
       const activeSteps = [...steps];
       let pausedForApproval = false;
@@ -103,6 +135,7 @@ export function useAgentWorkflow({
           plan: { chief_thought: "Executing workflow phases with Inspector verification...", steps: [...activeSteps] },
           actions: executedActions.slice(0, i + 1),
           pendingResponse: pendingReply,
+          pendingTokens: pendingTokens,
           workspaceRoot
         });
 
@@ -117,6 +150,7 @@ export function useAgentWorkflow({
             plan: { chief_thought: "Command awaiting user approval.", steps: [...activeSteps] },
             actions: executedActions.slice(0, i + 1),
             pendingResponse: pendingReply,
+            pendingTokens: pendingTokens,
             workspaceRoot
           });
           break;
@@ -129,6 +163,7 @@ export function useAgentWorkflow({
             plan: { chief_thought: "Phase verified by Inspector.", steps: [...activeSteps] },
             actions: executedActions.slice(0, i + 1),
             pendingResponse: pendingReply,
+            pendingTokens: pendingTokens,
             workspaceRoot
           });
           await delay(80);
@@ -136,7 +171,7 @@ export function useAgentWorkflow({
       }
 
       if (!pausedForApproval) {
-        await finalizeWorkflowCycle(convId, activeSteps, executedActions, pendingReply);
+        await finalizeWorkflowCycle(convId, activeSteps, executedActions, pendingReply, pendingTokens);
       }
     } catch (err) {
       console.error("[useAgentWorkflow] resumeWorkflowFromStep error:", err);
@@ -189,6 +224,14 @@ export function useAgentWorkflow({
             output: isOk ? "Exit code: 0 • Execution verified" : `Exit code: ${res.exit_code} • Command failed`,
             inspector_diagnosis: inspectorDiag?.diagnosis || null,
             inspector_fix: inspectorDiag?.suggested_command || null,
+            what_is_wrong: inspectorDiag?.what_is_wrong || null,
+            reasoning: inspectorDiag?.reasoning || null,
+            improvement_plan: inspectorDiag?.improvement_plan || null,
+            target_agent: inspectorDiag?.target_agent || null,
+            error_type: inspectorDiag?.error_type || null,
+            file_path: inspectorDiag?.file_path || null,
+            line_number: inspectorDiag?.line_number || null,
+            engineer_fix: inspectorDiag?.engineer_fix || null,
             pending_command: {
               ...s.pending_command,
               pending_approval: false,
@@ -211,17 +254,86 @@ export function useAgentWorkflow({
           stepIndex + 1,
           curr.actions || [],
           curr.pendingResponse,
-          curr.workspaceRoot
+          curr.workspaceRoot,
+          curr.pendingTokens || null
         );
       } else {
-        updateAgentState(activeConvId, (prev) => ({
-          ...prev,
-          isRunning: false,
-          isError: true,
-          status: "error",
-          currentStage: "Inspector Agent • Command Diagnostic",
-          plan: { ...prev.plan, steps: updatedSteps }
-        }));
+        if (inspectorDiag?.target_agent === "engineer" && inspectorDiag?.engineer_fix?.success) {
+          const fixStepId = "dyn_fix_" + Date.now();
+          const rerunStepId = "dyn_rerun_" + (Date.now() + 1);
+          const dynFixStep = {
+            id: fixStepId,
+            agent: "Engineer Agent",
+            title: `Auto-patch ${inspectorDiag.engineer_fix.file_path} [L${inspectorDiag.engineer_fix.l_start}:L${inspectorDiag.engineer_fix.l_finish}]`,
+            subtitle: inspectorDiag.engineer_fix.message,
+            status: "done",
+            output: inspectorDiag.engineer_fix.message
+          };
+          const dynRerunStep = {
+            id: rerunStepId,
+            agent: "CLI Agent",
+            title: "Re-run Verified Command",
+            subtitle: cmdObj.command,
+            status: "pending",
+            pending_command: {
+              command: cmdObj.command,
+              cwd: cmdObj.cwd,
+              pending_approval: true
+            }
+          };
+          const dynamicallyExtendedSteps = [...updatedSteps, dynFixStep, dynRerunStep];
+          setApprovingStepId(null);
+          isSubmittingRef.current = false;
+          await resumeWorkflowFromStep(
+            activeConvId,
+            dynamicallyExtendedSteps,
+            stepIndex + 1,
+            curr.actions || [],
+            curr.pendingResponse,
+            curr.workspaceRoot,
+            curr.pendingTokens || null
+          );
+        } else if (inspectorDiag?.target_agent === "cli" && inspectorDiag?.suggested_command) {
+          const cliFixStepId = "dyn_clifix_" + Date.now();
+          const dynCliFixStep = {
+            id: cliFixStepId,
+            agent: "CLI Agent",
+            title: inspectorDiag.error_type === "environment_path"
+              ? `Re-run with Local Environment: ${inspectorDiag.suggested_command}`
+              : `Apply Environment Fix: ${inspectorDiag.suggested_command}`,
+            subtitle: inspectorDiag.diagnosis,
+            status: "pending",
+            pending_command: {
+              command: inspectorDiag.suggested_command,
+              cwd: cmdObj.cwd,
+              pending_approval: true
+            }
+          };
+          const dynamicallyExtendedSteps = [...updatedSteps, dynCliFixStep];
+          setApprovingStepId(null);
+          isSubmittingRef.current = false;
+          await resumeWorkflowFromStep(
+            activeConvId,
+            dynamicallyExtendedSteps,
+            stepIndex + 1,
+            curr.actions || [],
+            curr.pendingResponse,
+            curr.workspaceRoot,
+            curr.pendingTokens || null
+          );
+        } else {
+          const stageName = inspectorDiag?.target_agent === "engineer"
+            ? "Inspector Agent • Routed to Engineer (Code Auto-Fix)"
+            : "Inspector Agent • Routed to CLI (Environment Fix)";
+          updateAgentState(activeConvId, (prev) => ({
+            ...prev,
+            isRunning: false,
+            isError: true,
+            status: "error",
+            currentStage: stageName,
+            plan: { ...prev.plan, steps: updatedSteps }
+          }));
+        }
       }
     } catch (err) {
       console.error("[useAgentWorkflow] handleApproveCommand error:", err);
@@ -290,7 +402,7 @@ export function useAgentWorkflow({
     }
   };
 
-  const handleSubmitPrompt = async (promptText, model, mode = "work") => {
+  const handleSubmitPrompt = async (promptText, model, mode = "work", historyOverride = null) => {
     if (isSubmittingRef.current) return;
     try {
       isSubmittingRef.current = true;
@@ -306,7 +418,8 @@ export function useAgentWorkflow({
       }
 
       const convId = conv ? String(conv.id) : String(Date.now());
-      const shouldGenerateTitle = !conv || conv.title === "New chat" || messages.length === 0;
+      const baseHistory = historyOverride !== null ? historyOverride : (messages || []);
+      const shouldGenerateTitle = !conv || conv.title === "New chat" || baseHistory.length === 0;
 
       if (shouldGenerateTitle && conv) {
         desktopApi.generateTitle(promptText).then((titleRes) => {
@@ -319,10 +432,7 @@ export function useAgentWorkflow({
       }
 
       const userMsg = { id: "user_" + Date.now(), conversation_id: convId, role: "user", content: promptText };
-      setMessages((prev) => {
-        const withoutDup = (prev || []).filter((m) => m.id !== userMsg.id);
-        return [...withoutDup, userMsg];
-      });
+      setMessages([...baseHistory, userMsg]);
 
       updateAgentState(convId, {
         isRunning: true,
@@ -349,16 +459,21 @@ export function useAgentWorkflow({
 
       const isNoProject = !currentProject || currentProject === "No Project";
       let targetWorkflow = "work";
-      try {
-        const routeRes = await desktopApi.classifyWorkflow(promptText, !isNoProject, currentProject);
-        if (routeRes?.workflow) {
-          targetWorkflow = routeRes.workflow;
-        } else if (isNoProject) {
-          targetWorkflow = "conversation";
+      if (isNoProject) {
+        targetWorkflow = "conversation";
+      } else if (mode === "work") {
+        targetWorkflow = "work";
+      } else if (mode === "chat") {
+        targetWorkflow = "conversation";
+      } else {
+        try {
+          const routeRes = await desktopApi.classifyWorkflow(promptText, !isNoProject, currentProject);
+          if (routeRes?.workflow) {
+            targetWorkflow = routeRes.workflow;
+          }
+        } catch (classifyErr) {
+          targetWorkflow = "work";
         }
-      } catch (classifyErr) {
-        console.error("[useAgentWorkflow] Intent classification error:", classifyErr);
-        targetWorkflow = isNoProject ? "conversation" : "work";
       }
 
       if (targetWorkflow === "conversation") {
@@ -390,7 +505,7 @@ export function useAgentWorkflow({
           actions: []
         });
 
-        const history = (messages || [])
+        const history = baseHistory
           .map((m) => ({
             role: m.role,
             content: (m.content || "").replace(/<!--workflow:[\s\S]*?-->/g, "").replace(/<!--files_changes:[\s\S]*?-->/g, "").trim()
@@ -423,9 +538,11 @@ export function useAgentWorkflow({
         };
 
         updateAgentState(convId, null);
-        const persisted = `<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;
+        const replyTokens = replyRes?.tokens;
+        const tokensHeader = replyTokens?.total ? `<!--tokens:${JSON.stringify(replyTokens)}-->\n` : "";
+        const persisted = `${tokensHeader}<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;
         const savedMsg = conv ? await desktopApi.addMessage(conv.id, "assistant", persisted) : null;
-        const replyMsg = savedMsg || { id: "asst_" + Date.now(), conversation_id: convId, role: "assistant", content: persisted };
+        const replyMsg = savedMsg || { id: "asst_" + Date.now(), conversation_id: convId, role: "assistant", content: persisted, tokens: replyTokens };
         setMessages((prev) => {
           const withoutDup = (prev || []).filter((m) => m.id !== replyMsg.id);
           return [...withoutDup, replyMsg];
@@ -472,7 +589,7 @@ export function useAgentWorkflow({
         actions: []
       });
 
-      const history = (messages || [])
+      const history = baseHistory
         .map((m) => ({
           role: m.role,
           content: (m.content || "").replace(/<!--workflow:[\s\S]*?-->/g, "").replace(/<!--files_changes:[\s\S]*?-->/g, "").trim()
@@ -555,13 +672,14 @@ export function useAgentWorkflow({
             steps: activeSteps
           },
           actions: executedActions,
-          pendingResponse: agentResult?.response || "Topshiriq muvaffaqiyatli tayyorlandi."
+          pendingResponse: agentResult?.response || "Topshiriq muvaffaqiyatli tayyorlandi.",
+          pendingTokens: agentResult?.tokens || null
         });
         isSubmittingRef.current = false;
         return;
       }
 
-      await finalizeWorkflowCycle(convId, activeSteps, executedActions, agentResult?.response);
+      await finalizeWorkflowCycle(convId, activeSteps, executedActions, agentResult?.response, agentResult?.tokens);
     } catch (error) {
       console.error("[useAgentWorkflow] Submit prompt error:", error);
       isSubmittingRef.current = false;
@@ -581,6 +699,39 @@ export function useAgentWorkflow({
     }
   };
 
+  const handleEditMessage = async (messageId, newContent) => {
+    try {
+      if (!activeConvId || isSubmittingRef.current) return;
+      const targetIndex = (messages || []).findIndex((m) => m.id === messageId);
+      if (targetIndex === -1) return;
+
+      const priorHistory = (messages || []).slice(0, targetIndex);
+      setMessages(priorHistory);
+
+      await desktopApi.truncateMessagesFrom(activeConvId, messageId);
+
+      await handleSubmitPrompt(newContent, "gemini-3.5-flash-lite", "work", priorHistory);
+    } catch (err) {
+      console.error("[useAgentWorkflow] handleEditMessage error:", err);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      if (!activeConvId || isSubmittingRef.current) return;
+      const targetIndex = (messages || []).findIndex((m) => m.id === messageId);
+      if (targetIndex === -1) return;
+
+      const priorHistory = (messages || []).slice(0, targetIndex);
+      setMessages(priorHistory);
+      updateAgentState(activeConvId, null);
+
+      await desktopApi.truncateMessagesFrom(activeConvId, messageId);
+    } catch (err) {
+      console.error("[useAgentWorkflow] handleDeleteMessage error:", err);
+    }
+  };
+
   return {
     agentState,
     approvingStepId,
@@ -588,6 +739,8 @@ export function useAgentWorkflow({
     handleRejectCommand,
     handleContinueAnyway,
     handleSubmitPrompt,
+    handleEditMessage,
+    handleDeleteMessage,
     handleCancelAgent,
     handleDismissWorkflow,
     updateAgentState

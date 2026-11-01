@@ -20,7 +20,9 @@ export default function CenterWorkspace({
   onApproveCommand,
   onRejectCommand,
   onContinueAnyway,
-  approvingStepId
+  approvingStepId,
+  onEditMessage,
+  onDeleteMessage
 }) {
   const { t } = useTranslation();
   const [promptText, setPromptText] = useState("");
@@ -112,6 +114,8 @@ export default function CenterWorkspace({
                 key={msg.id}
                 message={msg}
                 currentModelLabel={currentModelLabel}
+                onEditMessage={onEditMessage}
+                onDeleteMessage={onDeleteMessage}
               />
             ))}
 

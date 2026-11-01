@@ -265,6 +265,29 @@ export const desktopApi = {
     }
   },
 
+  async truncateMessagesFrom(conversationId, messageId) {
+    try {
+      const api = await waitForApi();
+      if (api?.truncate_messages_from) {
+        await api.truncate_messages_from(conversationId, messageId);
+      } else {
+        await fetchLocalApi("/api/truncate_messages", {
+          method: "POST",
+          body: JSON.stringify({ conversation_id: conversationId, message_id: messageId })
+        });
+      }
+      const list = getStoredItem(`emris_messages_${conversationId}`, []);
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx !== -1) {
+        setStoredItem(`emris_messages_${conversationId}`, list.slice(0, idx));
+      }
+      return { success: true };
+    } catch (err) {
+      console.error("[API] truncateMessagesFrom error:", err);
+      return { success: false, error: String(err) };
+    }
+  },
+
   async runCommand(command, cwd = null) {
     try {
       const api = await waitForApi();

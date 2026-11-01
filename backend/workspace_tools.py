@@ -197,7 +197,15 @@ def execute_engineer_turn_tools(text: str, workspace_root: str) -> tuple[list, l
             s_line = int(m.group(2)) if m.group(2) else 1
             m_lines = int(m.group(3)) if m.group(3) else 150
             res = tool_read_file(p, workspace_root, start_line=s_line, max_lines=m_lines)
-            actions.append({"agent": "Engineer Agent", "action": "read_file", "target": p, "result": res})
+            clean_res = {
+                "success": res.get("success"),
+                "path": p,
+                "total_lines": res.get("total_lines"),
+                "start_line": res.get("start_line"),
+                "end_line": res.get("end_line"),
+                "error": res.get("error")
+            }
+            actions.append({"agent": "Engineer Agent", "action": "read_file", "target": p, "result": clean_res})
             if res.get("success"):
                 feedbacks.append(f"[Tool Result: read_file('{p}', lines {res.get('start_line')}-{res.get('end_line')} of {res.get('total_lines')}):\n{res.get('content')}]")
             else:
@@ -225,16 +233,127 @@ def execute_engineer_turn_tools(text: str, workspace_root: str) -> tuple[list, l
         print(f"[WorkspaceTools] execute_engineer_turn_tools error: {exc}")
     return actions, feedbacks
 
+def sanitize_code_content(path: str, content: str) -> str:
+    cleaned = content.strip()
+    cleaned = re.sub(r"(?m)^\s*```[a-zA-Z0-9_\-]*\s*$", "", cleaned)
+    ext = os.path.splitext(path)[1].lower()
+    if ext in (".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".html", ".css", ".sql", ".sh"):
+        lines = [line for line in cleaned.splitlines() if not re.match(r"^\s*```[a-zA-Z0-9_\-]*\s*$", line)]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        cleaned = "\n".join(lines)
+    return cleaned
+
+
+WORKSPACE_TOOLS_DECLARATIONS = [
+    {
+        "function_declarations": [
+            {
+                "name": "read_file",
+                "description": "Read file lines bounded by line numbers with line numbering for inspection and context.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "path": {
+                            "type": "STRING",
+                            "description": "Relative path to the target file in the workspace"
+                        },
+                        "start_line": {
+                            "type": "INTEGER",
+                            "description": "1-based starting line number"
+                        },
+                        "max_lines": {
+                            "type": "INTEGER",
+                            "description": "Maximum number of lines to read"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "create_file",
+                "description": "Create a new file or completely overwrite a file with exact code content.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "path": {
+                            "type": "STRING",
+                            "description": "Relative path of the file to create or overwrite"
+                        },
+                        "content": {
+                            "type": "STRING",
+                            "description": "Full source code or text content of the file"
+                        }
+                    },
+                    "required": ["path", "content"]
+                }
+            },
+            {
+                "name": "replace_block",
+                "description": "Replace a targeted code block in an existing file. Must match search_str accurately.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "path": {
+                            "type": "STRING",
+                            "description": "Relative path to the target file"
+                        },
+                        "search_str": {
+                            "type": "STRING",
+                            "description": "Exact lines of existing code to locate and replace"
+                        },
+                        "replace_str": {
+                            "type": "STRING",
+                            "description": "New replacement code lines"
+                        }
+                    },
+                    "required": ["path", "search_str", "replace_str"]
+                }
+            },
+            {
+                "name": "list_dir",
+                "description": "List all files and subdirectories in a workspace directory.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "path": {
+                            "type": "STRING",
+                            "description": "Relative directory path (empty string or '.' for workspace root)"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "cmd_command",
+                "description": "Execute a terminal CLI command in the workspace.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "command": {
+                            "type": "STRING",
+                            "description": "Shell command line to execute"
+                        }
+                    },
+                    "required": ["command"]
+                }
+            }
+        ]
+    }
+]
+
 def tool_create_file(path: str, content: str, workspace_root: str) -> dict:
     try:
         full_path = Path(workspace_root) / path
         if not is_safe_path(str(full_path), workspace_root):
             return {"success": False, "error": "Access denied: outside sandbox"}
         full_path.parent.mkdir(parents=True, exist_ok=True)
+        sanitized = sanitize_code_content(path, content)
         with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(sanitized)
         trigger_file_analyzer_hook(workspace_root)
-        return {"success": True, "path": path, "bytes": len(content)}
+        return {"success": True, "path": path, "bytes": len(sanitized)}
     except Exception as exc:
         print(f"[WorkspaceTools] tool_create_file error on {path}: {exc}")
         return {"success": False, "error": str(exc)}
@@ -250,14 +369,54 @@ def tool_replace_block(path: str, search_str: str, replace_str: str, workspace_r
         with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
             data = f.read()
 
-        if search_str not in data:
-            return {"success": False, "error": "search_str not found"}
+        s_clean = search_str.strip("\r\n")
+        if not s_clean:
+            return {"success": False, "error": "search_str is empty"}
 
-        start_idx = data.find(search_str)
-        l_start = data[:start_idx].count("\n") + 1
-        l_finish = l_start + search_str.count("\n")
+        rep_clean = sanitize_code_content(path, replace_str)
 
-        updated = data[:start_idx] + replace_str + data[start_idx + len(search_str):]
+        if s_clean in data:
+            start_idx = data.find(s_clean)
+            l_start = data[:start_idx].count("\n") + 1
+            l_finish = l_start + s_clean.count("\n")
+            updated = data[:start_idx] + rep_clean.strip("\r\n") + data[start_idx + len(s_clean):]
+        else:
+            file_lines = data.splitlines(keepends=True)
+            search_lines = [l.strip() for l in s_clean.splitlines() if l.strip()]
+            if not search_lines:
+                return {"success": False, "error": "search_str not found"}
+
+            matched_idx = -1
+            n = len(search_lines)
+            for i in range(len(file_lines) - n + 1):
+                if [file_lines[i + j].strip() for j in range(n)] == search_lines:
+                    matched_idx = i
+                    break
+
+            if matched_idx == -1:
+                return {"success": False, "error": "search_str not found"}
+
+            l_start = matched_idx + 1
+            l_finish = matched_idx + n
+
+            first_line = file_lines[matched_idx]
+            base_indent = len(first_line) - len(first_line.lstrip())
+            indent_prefix = first_line[:base_indent]
+
+            rep_lines = rep_clean.strip("\r\n").splitlines()
+            formatted_rep = []
+            for r_line in rep_lines:
+                if r_line.strip() and not (r_line.startswith(" ") or r_line.startswith("\t")):
+                    formatted_rep.append(indent_prefix + r_line)
+                else:
+                    formatted_rep.append(r_line)
+
+            rep_block = "\n".join(formatted_rep)
+            if file_lines[matched_idx + n - 1].endswith("\n"):
+                rep_block += "\n"
+
+            updated = "".join(file_lines[:matched_idx]) + rep_block + "".join(file_lines[matched_idx + n:])
+
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(updated)
         trigger_file_analyzer_hook(workspace_root)
@@ -300,10 +459,28 @@ def apply_engineer_targeted_tools(text: str, workspace_root: str) -> list:
         for pat in patterns:
             for match in pat.finditer(text):
                 p = match.group(1).strip()
+                raw_c = match.group(2).strip()
+
+                nested_pat = re.search(r'(?:\r?\n```(?:xml)?\s*)?<(?:write|create_file|file)\s+(?:src|path)=[\'"]([^\'"]+)[\'"]>([\s\S]*)', raw_c, re.IGNORECASE)
+                if nested_pat:
+                    clean_first = raw_c[:nested_pat.start()].rstrip()
+                    if p not in seen_paths:
+                        seen_paths.add(p)
+                        res = tool_create_file(p, clean_first, workspace_root)
+                        actions.append({"agent": "Engineer Agent", "action": "create_file", "target": p, "result": res})
+
+                    nested_p = nested_pat.group(1).strip()
+                    nested_c = re.sub(r'</(?:write|create_file|file)>[\s\S]*$', '', nested_pat.group(2)).strip()
+                    if nested_p not in seen_paths:
+                        seen_paths.add(nested_p)
+                        res2 = tool_create_file(nested_p, nested_c, workspace_root)
+                        actions.append({"agent": "Engineer Agent", "action": "create_file", "target": nested_p, "result": res2})
+                    continue
+
                 if p in seen_paths:
                     continue
                 seen_paths.add(p)
-                res = tool_create_file(p, match.group(2).strip(), workspace_root)
+                res = tool_create_file(p, raw_c, workspace_root)
                 actions.append({"agent": "Engineer Agent", "action": "create_file", "target": p, "result": res})
 
         rep_pat = re.compile(
@@ -441,7 +618,7 @@ def get_existing_subprojects(workspace_root: str) -> list:
         return []
 
 def load_referenced_source_files(prompt: str, workspace_root: str, context_text: str = None) -> str:
-    contexts = []
+    candidate_lines = []
     loaded_paths = set()
     try:
         if not workspace_root or not os.path.exists(workspace_root):
@@ -449,32 +626,28 @@ def load_referenced_source_files(prompt: str, workspace_root: str, context_text:
         combined_text = (prompt + " " + (context_text or "")).lower()
         root_path = Path(workspace_root)
 
-        found_tokens = re.findall(r'[a-zA-Z0-9_\-\./\\]+\.[a-zA-Z0-9]{1,6}', combined_text)
-        for token in found_tokens:
-            clean_token = token.replace("\\", "/").strip("./")
-            candidate = root_path / clean_token
-            if candidate.exists() and candidate.is_file() and str(candidate) not in loaded_paths:
-                loaded_paths.add(str(candidate))
-                with open(candidate, "r", encoding="utf-8", errors="ignore") as f:
-                    c = f.read()
-                contexts.append(f"SOURCE FILE: `{clean_token}`\n```\n{c[:8000]}\n```")
-
+        tokens = [t for t in re.findall(r'[a-zA-Z0-9_\-\.]{3,}', combined_text) if t not in ("the", "and", "for", "with", "this", "file", "make", "edit", "code")]
         for p in root_path.rglob("*"):
-            if len(contexts) >= 5:
+            if len(candidate_lines) >= 20:
                 break
             if p.is_file() and not any(part.startswith(".") for part in p.parts):
-                rel = str(p.relative_to(root_path)).replace("\\", "/")
                 if any(part in ("node_modules", "dist", "build", ".venv", "__pycache__") for part in p.parts):
                     continue
-                if p.name.lower() in combined_text or rel.lower() in combined_text:
+                rel = str(p.relative_to(root_path)).replace("\\", "/")
+                if p.name.lower() in combined_text or rel.lower() in combined_text or any(tok in rel.lower() for tok in tokens[:8]):
                     if str(p) not in loaded_paths:
                         loaded_paths.add(str(p))
-                        with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                            c = f.read()
-                        contexts.append(f"SOURCE FILE: `{rel}`\n```\n{c[:8000]}\n```")
+                        try:
+                            with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                                line_count = sum(1 for _ in f)
+                            candidate_lines.append(f"- `{rel}` ({line_count} lines) -> `<read_file path=\"{rel}\" start_line=\"1\" max_lines=\"100\" />`")
+                        except Exception:
+                            candidate_lines.append(f"- `{rel}`")
     except Exception as exc:
         print(f"[WorkspaceTools] load_referenced_source_files error: {exc}")
-    return "\n\n".join(contexts)
+    if candidate_lines:
+        return "WORKSPACE FILES (Inspect line slices using tool_read_file before editing):\n" + "\n".join(candidate_lines)
+    return ""
 
 def detect_workspace_environments(workspace_root: str) -> dict:
     info = {

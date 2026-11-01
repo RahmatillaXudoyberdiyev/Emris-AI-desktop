@@ -35,6 +35,8 @@ export default function App() {
     handleRejectCommand,
     handleContinueAnyway,
     handleSubmitPrompt,
+    handleEditMessage,
+    handleDeleteMessage,
     handleCancelAgent,
     handleDismissWorkflow,
     updateAgentState
@@ -250,6 +252,8 @@ export default function App() {
           onApproveCommand={handleApproveCommand}
           onRejectCommand={handleRejectCommand}
           onContinueAnyway={handleContinueAnyway}
+          onEditMessage={handleEditMessage}
+          onDeleteMessage={handleDeleteMessage}
         />
       </main>
       <RightPanel
