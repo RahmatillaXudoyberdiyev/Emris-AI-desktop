@@ -54,7 +54,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/EmrisAI-Setup-v1.2-Beta.exe
+          files: dist/EmrisAI-Setup-*.exe
           name: Emris AI Desktop ${{ github.ref_name }}
           prerelease: true
           generate_release_notes: true
