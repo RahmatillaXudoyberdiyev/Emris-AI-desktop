@@ -102,9 +102,9 @@ Any code changes made in `frontend/src/` will hot-reload immediately inside the 
 
 ---
 
-## Building a Standalone Executable (.exe)
+## Building the Permanent Windows Installer (.exe)
 
-To package the standalone Windows binary with embedded assets:
+To build the standalone application distribution and compile the permanent Windows Setup wizard:
 
 ```bash
 # 1. Compile the React production bundle
@@ -112,11 +112,17 @@ cd frontend
 npm run build
 cd ..
 
-# 2. Package with PyInstaller
-.\.venv\Scripts\pyinstaller.exe --noconfirm --clean --onefile --noconsole --name "Emris-AI-Desktop-v1.2-Beta" --add-data "frontend/dist;frontend/dist" --add-data "backend/prompts;backend/prompts" backend/main.py
+# 2. Package application bundle with PyInstaller
+.\.venv\Scripts\pyinstaller.exe --clean -y EmrisAI.spec
+
+# 3. Compile permanent Windows Installer with Inno Setup
+& "C:\Users\Rahmatilla\AppData\Local\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-The resulting single-file executable is output to `dist/Emris-AI-Desktop-v1.2-Beta.exe`.
+The resulting permanent installer is output to:
+`dist/EmrisAI-Setup-v1.2-Beta.exe`
+
+Running this installer permanently sets up Emris AI Desktop in Windows with Start Menu shortcuts, a Desktop shortcut, and a registered Windows uninstaller. User chat data and projects are permanently stored in `%APPDATA%\EmrisAI\emris.db`.
 
 ---
 

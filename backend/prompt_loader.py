@@ -19,13 +19,21 @@ def resolve_prompt_file_path(filename: str) -> Path | None:
             if custom_path.exists():
                 return custom_path
 
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            meipass_path = Path(sys._MEIPASS) / "backend" / "prompts" / filename
-            if meipass_path.exists():
-                return meipass_path
-            alt_meipass = Path(sys._MEIPASS) / "prompts" / filename
-            if alt_meipass.exists():
-                return alt_meipass
+        if getattr(sys, "frozen", False):
+            if hasattr(sys, "_MEIPASS"):
+                meipass_path = Path(sys._MEIPASS) / "backend" / "prompts" / filename
+                if meipass_path.exists():
+                    return meipass_path
+                alt_meipass = Path(sys._MEIPASS) / "prompts" / filename
+                if alt_meipass.exists():
+                    return alt_meipass
+            exe_parent = Path(sys.executable).resolve().parent
+            internal_prompts = exe_parent / "_internal" / "backend" / "prompts" / filename
+            if internal_prompts.exists():
+                return internal_prompts
+            alt_internal = exe_parent / "_internal" / "prompts" / filename
+            if alt_internal.exists():
+                return alt_internal
 
         dev_path = Path(__file__).resolve().parent / "prompts" / filename
         if dev_path.exists():

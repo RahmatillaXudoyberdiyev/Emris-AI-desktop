@@ -392,7 +392,11 @@ def get_base_dir() -> Path:
         if getattr(sys, "frozen", False):
             if hasattr(sys, "_MEIPASS"):
                 return Path(sys._MEIPASS)
-            return Path(sys.executable).resolve().parent
+            exe_parent = Path(sys.executable).resolve().parent
+            internal_dir = exe_parent / "_internal"
+            if internal_dir.exists():
+                return internal_dir
+            return exe_parent
         return Path(__file__).resolve().parent.parent
     except Exception as exc:
         print(f"[Desktop] Error resolving base dir: {exc}")
@@ -411,7 +415,13 @@ def resolve_target_url(base_dir: Path) -> str:
             print(f"[Desktop] Production build found: targeting {dist_index}")
             return str(dist_index)
 
-        exe_dist_index = Path(sys.executable).resolve().parent / "frontend" / "dist" / "index.html"
+        exe_parent = Path(sys.executable).resolve().parent
+        internal_dist = exe_parent / "_internal" / "frontend" / "dist" / "index.html"
+        if internal_dist.exists():
+            print(f"[Desktop] Production build found in internal: targeting {internal_dist}")
+            return str(internal_dist)
+
+        exe_dist_index = exe_parent / "frontend" / "dist" / "index.html"
         if exe_dist_index.exists():
             print(f"[Desktop] Production build found at executable: targeting {exe_dist_index}")
             return str(exe_dist_index)

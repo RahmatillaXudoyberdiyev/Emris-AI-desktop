@@ -38,14 +38,23 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pyinstaller
 
-      - name: Build Windows Standalone Executable
+      - name: Install Inno Setup
         run: |
-          pyinstaller --noconfirm --clean --onefile --noconsole --name "Emris-AI-Desktop-v1.2-Beta" --add-data "frontend/dist;frontend/dist" --add-data "backend/prompts;backend/prompts" backend/main.py
+          choco install innosetup -y
+
+      - name: Build PyInstaller Binary Distribution
+        run: |
+          pyinstaller --clean -y EmrisAI.spec
+
+      - name: Compile Inno Setup Windows Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        shell: powershell
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Emris-AI-Desktop-v1.2-Beta.exe
+          files: dist/EmrisAI-Setup-v1.2-Beta.exe
           name: Emris AI Desktop ${{ github.ref_name }}
           prerelease: true
           generate_release_notes: true
