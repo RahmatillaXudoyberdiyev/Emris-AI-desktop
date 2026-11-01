@@ -8,8 +8,19 @@ from pathlib import Path
 import webview
 
 project_root = Path(__file__).resolve().parent.parent
+backend_dir = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    if hasattr(sys, "_MEIPASS"):
+        meipass_path = Path(sys._MEIPASS)
+        if str(meipass_path) not in sys.path:
+            sys.path.insert(0, str(meipass_path))
+    exe_dir = Path(sys.executable).resolve().parent
+    if str(exe_dir) not in sys.path:
+        sys.path.insert(0, str(exe_dir))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
 try:
     from backend.database import db
@@ -47,15 +58,23 @@ os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--allow-insecure-localhos
 
 def load_env_file():
     try:
-        env_path = Path(__file__).resolve().parent.parent / ".env"
-        if env_path.exists():
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        os.environ.setdefault(k.strip(), v.strip())
-            print("[Desktop] .env configuration loaded.")
+        candidates = []
+        if getattr(sys, "frozen", False):
+            app_data = os.getenv("APPDATA")
+            if app_data:
+                candidates.append(Path(app_data) / "EmrisAI" / ".env")
+            candidates.append(Path(sys.executable).resolve().parent / ".env")
+        candidates.append(Path(__file__).resolve().parent.parent / ".env")
+        for env_path in candidates:
+            if env_path.exists():
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            os.environ.setdefault(k.strip(), v.strip())
+                print(f"[Desktop] .env configuration loaded from: {env_path}")
+                break
     except Exception as exc:
         print(f"[Desktop] Error loading .env: {exc}")
 
@@ -370,8 +389,10 @@ def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
 
 def get_base_dir() -> Path:
     try:
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            return Path(sys._MEIPASS)
+        if getattr(sys, "frozen", False):
+            if hasattr(sys, "_MEIPASS"):
+                return Path(sys._MEIPASS)
+            return Path(sys.executable).resolve().parent
         return Path(__file__).resolve().parent.parent
     except Exception as exc:
         print(f"[Desktop] Error resolving base dir: {exc}")
@@ -389,6 +410,11 @@ def resolve_target_url(base_dir: Path) -> str:
         if dist_index.exists():
             print(f"[Desktop] Production build found: targeting {dist_index}")
             return str(dist_index)
+
+        exe_dist_index = Path(sys.executable).resolve().parent / "frontend" / "dist" / "index.html"
+        if exe_dist_index.exists():
+            print(f"[Desktop] Production build found at executable: targeting {exe_dist_index}")
+            return str(exe_dist_index)
 
         if is_port_in_use(5173, "127.0.0.1"):
             return "http://127.0.0.1:5173"

@@ -511,11 +511,13 @@ def apply_engineer_targeted_tools(text: str, workspace_root: str) -> list:
 def extract_cli_commands(text: str, workspace_root: str) -> list:
     actions = []
     try:
+        from backend.terminal import prepare_virtualenv_execution
         pattern = re.compile(r"<cmd_command(?:\s+cwd=['\"]([^'\"]+)['\"])?>([\s\S]*?)</cmd_command>", re.IGNORECASE)
+        seen_cmds = set()
         for match in pattern.finditer(text):
             sub_cwd = match.group(1)
-            cmd = match.group(2).strip()
-            if not cmd:
+            raw_cmd = match.group(2).strip()
+            if not raw_cmd:
                 continue
             target_cwd = workspace_root
             if sub_cwd:
@@ -523,7 +525,7 @@ def extract_cli_commands(text: str, workspace_root: str) -> list:
                 if os.path.exists(cand):
                     target_cwd = cand
             else:
-                if re.search(r"\b(?:npm|pnpm|yarn|bun)\s+(?:run|start|build|dev|test)\b", cmd, re.IGNORECASE):
+                if re.search(r"\b(?:npm|pnpm|yarn|bun)\s+(?:run|start|build|dev|test)\b", raw_cmd, re.IGNORECASE):
                     if not os.path.exists(os.path.join(workspace_root, "package.json")):
                         for root_dir, dirs, files in os.walk(workspace_root):
                             dirs[:] = [d for d in dirs if d not in ("node_modules", ".git", ".venv", "dist", "build")]
@@ -531,8 +533,8 @@ def extract_cli_commands(text: str, workspace_root: str) -> list:
                                 target_cwd = root_dir
                                 sub_cwd = os.path.relpath(root_dir, workspace_root).replace("\\", "/")
                                 break
-                elif re.search(r"\bpython(?:\.exe)?\s+(\S+\.py)\b", cmd, re.IGNORECASE):
-                    m_py = re.search(r"\bpython(?:\.exe)?\s+(\S+\.py)\b", cmd, re.IGNORECASE).group(1)
+                elif re.search(r"\bpython(?:\.exe)?\s+(\S+\.py)\b", raw_cmd, re.IGNORECASE):
+                    m_py = re.search(r"\bpython(?:\.exe)?\s+(\S+\.py)\b", raw_cmd, re.IGNORECASE).group(1)
                     if not os.path.exists(os.path.join(workspace_root, m_py)):
                         py_name = os.path.basename(m_py)
                         for root_dir, dirs, files in os.walk(workspace_root):
@@ -541,6 +543,12 @@ def extract_cli_commands(text: str, workspace_root: str) -> list:
                                 target_cwd = root_dir
                                 sub_cwd = os.path.relpath(root_dir, workspace_root).replace("\\", "/")
                                 break
+
+            cmd, _ = prepare_virtualenv_execution(raw_cmd, target_cwd)
+            if cmd in seen_cmds:
+                continue
+            seen_cmds.add(cmd)
+
             actions.append({
                 "agent": "CLI Agent",
                 "action": "cmd_command",

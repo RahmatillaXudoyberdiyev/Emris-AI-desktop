@@ -248,9 +248,29 @@ export function useAgentWorkflow({
       if (isOk) {
         setApprovingStepId(null);
         isSubmittingRef.current = false;
+
+        let nextSteps = updatedSteps;
+        if (cmdObj.originalCommand && cmdObj.command !== cmdObj.originalCommand) {
+          const retargetedOrig = cmdObj.originalCommand.replace(/^\$?python(?:\.exe)?\b/i, ".\\.venv\\Scripts\\python");
+          const rerunStepId = "dyn_rerun_" + Date.now();
+          const dynRerunStep = {
+            id: rerunStepId,
+            agent: "CLI Agent",
+            title: "Re-run Application in Local Virtual Environment",
+            subtitle: retargetedOrig,
+            status: "pending",
+            pending_command: {
+              command: retargetedOrig,
+              cwd: cmdObj.cwd,
+              pending_approval: true
+            }
+          };
+          nextSteps = [...updatedSteps, dynRerunStep];
+        }
+
         await resumeWorkflowFromStep(
           activeConvId,
-          updatedSteps,
+          nextSteps,
           stepIndex + 1,
           curr.actions || [],
           curr.pendingResponse,
@@ -295,6 +315,7 @@ export function useAgentWorkflow({
           );
         } else if (inspectorDiag?.target_agent === "cli" && inspectorDiag?.suggested_command) {
           const cliFixStepId = "dyn_clifix_" + Date.now();
+          const rerunStepId = "dyn_rerun_" + (Date.now() + 1);
           const dynCliFixStep = {
             id: cliFixStepId,
             agent: "CLI Agent",
@@ -306,10 +327,27 @@ export function useAgentWorkflow({
             pending_command: {
               command: inspectorDiag.suggested_command,
               cwd: cmdObj.cwd,
-              pending_approval: true
+              pending_approval: true,
+              originalCommand: cmdObj.command
             }
           };
-          const dynamicallyExtendedSteps = [...updatedSteps, dynCliFixStep];
+          let dynamicallyExtendedSteps = [...updatedSteps, dynCliFixStep];
+          if (inspectorDiag.error_type === "missing_dependency") {
+            const retargetedOrig = cmdObj.command.replace(/^\$?python(?:\.exe)?\b/i, ".\\.venv\\Scripts\\python");
+            const dynRerunStep = {
+              id: rerunStepId,
+              agent: "CLI Agent",
+              title: "Re-run Application in Virtual Environment",
+              subtitle: retargetedOrig,
+              status: "pending",
+              pending_command: {
+                command: retargetedOrig,
+                cwd: cmdObj.cwd,
+                pending_approval: true
+              }
+            };
+            dynamicallyExtendedSteps.push(dynRerunStep);
+          }
           setApprovingStepId(null);
           isSubmittingRef.current = false;
           await resumeWorkflowFromStep(

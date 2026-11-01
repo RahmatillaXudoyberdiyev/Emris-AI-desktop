@@ -348,7 +348,7 @@ export default function AgentActivityCard({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (onApproveCommand) {
-                                    onApproveCommand({ ...cmdInfo, command: st.inspector_fix }, st.id);
+                                    onApproveCommand({ ...cmdInfo, command: st.inspector_fix, originalCommand: cmdInfo.command }, st.id);
                                   }
                                 }}
                                 className="px-2.5 py-1 rounded bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[10px] font-medium flex-shrink-0 transition-colors cursor-pointer disabled:opacity-50"

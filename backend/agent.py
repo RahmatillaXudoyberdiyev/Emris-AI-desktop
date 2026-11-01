@@ -6,35 +6,74 @@ import sys
 from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
+backend_dir = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    if hasattr(sys, "_MEIPASS"):
+        meipass_path = Path(sys._MEIPASS)
+        if str(meipass_path) not in sys.path:
+            sys.path.insert(0, str(meipass_path))
+    exe_dir = Path(sys.executable).resolve().parent
+    if str(exe_dir) not in sys.path:
+        sys.path.insert(0, str(exe_dir))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
-from backend.terminal import execute_shell_command, get_workspace_background_context, prepare_virtualenv_execution
-from backend.gateway import request_generate, request_generate_with_tools
-from backend.workspace_tools import (
-    ensure_emris_memory,
-    build_project_map,
-    build_functions_index,
-    trigger_file_analyzer_hook,
-    write_plans_md,
-    tool_create_file,
-    tool_replace_block,
-    tool_delete_file,
-    apply_engineer_targeted_tools,
-    extract_cli_commands,
-    sanitize_display_response,
-    detect_and_prepare_subfolder,
-    get_existing_subprojects,
-    load_referenced_source_files,
-    detect_workspace_environments,
-    execute_engineer_turn_tools,
-    tool_read_file,
-    tool_list_files,
-    sanitize_code_content,
-    WORKSPACE_TOOLS_DECLARATIONS
-)
-from backend.retrievers import HybridCodeRetrieverEngine
-from backend.prompt_loader import render_prompt
+try:
+    from backend.terminal import execute_shell_command, get_workspace_background_context, prepare_virtualenv_execution
+    from backend.gateway import request_generate, request_generate_with_tools
+    from backend.workspace_tools import (
+        ensure_emris_memory,
+        build_project_map,
+        build_functions_index,
+        trigger_file_analyzer_hook,
+        write_plans_md,
+        tool_create_file,
+        tool_replace_block,
+        tool_delete_file,
+        apply_engineer_targeted_tools,
+        extract_cli_commands,
+        sanitize_display_response,
+        detect_and_prepare_subfolder,
+        get_existing_subprojects,
+        load_referenced_source_files,
+        detect_workspace_environments,
+        execute_engineer_turn_tools,
+        tool_read_file,
+        tool_list_files,
+        sanitize_code_content,
+        WORKSPACE_TOOLS_DECLARATIONS
+    )
+    from backend.retrievers import HybridCodeRetrieverEngine
+    from backend.prompt_loader import render_prompt
+except ImportError:
+    from terminal import execute_shell_command, get_workspace_background_context, prepare_virtualenv_execution
+    from gateway import request_generate, request_generate_with_tools
+    from workspace_tools import (
+        ensure_emris_memory,
+        build_project_map,
+        build_functions_index,
+        trigger_file_analyzer_hook,
+        write_plans_md,
+        tool_create_file,
+        tool_replace_block,
+        tool_delete_file,
+        apply_engineer_targeted_tools,
+        extract_cli_commands,
+        sanitize_display_response,
+        detect_and_prepare_subfolder,
+        get_existing_subprojects,
+        load_referenced_source_files,
+        detect_workspace_environments,
+        execute_engineer_turn_tools,
+        tool_read_file,
+        tool_list_files,
+        sanitize_code_content,
+        WORKSPACE_TOOLS_DECLARATIONS
+    )
+    from retrievers import HybridCodeRetrieverEngine
+    from prompt_loader import render_prompt
 
 
 def generate_conversation_title(prompt: str) -> dict:
@@ -368,28 +407,53 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                 elif fn_name == "cmd_command":
                     raw_cmd_str = args.get("command", "").strip()
                     cmd_str, _ = prepare_virtualenv_execution(raw_cmd_str, effective_workspace)
-                    response_parts.append({
-                        "functionResponse": {
-                            "name": "cmd_command",
-                            "id": call_id,
-                            "response": {
-                                "status": "queued_for_approval",
-                                "command": cmd_str,
-                                "message": f"Command '{cmd_str}' has been queued for terminal approval."
+
+                    already_queued = any(
+                        a.get("action") == "cmd_command" and a.get("command") == cmd_str
+                        for a in executed_actions
+                    )
+                    has_install_queued = any(
+                        a.get("action") == "cmd_command" and "install" in a.get("command", "").lower()
+                        for a in executed_actions
+                    )
+                    is_new_install = "install" in cmd_str.lower()
+                    is_verification_test = bool(re.search(r"python(?:\.exe)?\s+-c\s+[\"']import\b", cmd_str, re.IGNORECASE))
+
+                    if already_queued or (has_install_queued and is_new_install) or is_verification_test:
+                        response_parts.append({
+                            "functionResponse": {
+                                "name": "cmd_command",
+                                "id": call_id,
+                                "response": {
+                                    "status": "already_queued",
+                                    "command": cmd_str,
+                                    "message": f"Terminal command '{cmd_str}' is already registered for execution. Do not repeat installation or verification commands. Complete remaining file edits or finish your turn."
+                                }
                             }
-                        }
-                    })
-                    executed_actions.append({
-                        "id": f"cmd_{len(executed_actions) + 1}",
-                        "agent": "CLI Agent",
-                        "action": "cmd_command",
-                        "target": cmd_str,
-                        "command": cmd_str,
-                        "cwd": effective_workspace,
-                        "display_cwd": Path(effective_workspace).name or ".",
-                        "pending_approval": True,
-                        "result": {"status": "pending_approval"}
-                    })
+                        })
+                    else:
+                        response_parts.append({
+                            "functionResponse": {
+                                "name": "cmd_command",
+                                "id": call_id,
+                                "response": {
+                                    "status": "queued_for_approval",
+                                    "command": cmd_str,
+                                    "message": f"Command '{cmd_str}' has been queued for execution in the local environment upon workflow approval. Do NOT repeat installation or verification commands. Proceed to complete file modifications or finish your response."
+                                }
+                            }
+                        })
+                        executed_actions.append({
+                            "id": f"cmd_{len(executed_actions) + 1}",
+                            "agent": "CLI Agent",
+                            "action": "cmd_command",
+                            "target": cmd_str,
+                            "command": cmd_str,
+                            "cwd": effective_workspace,
+                            "display_cwd": Path(effective_workspace).name or ".",
+                            "pending_approval": True,
+                            "result": {"status": "pending_approval"}
+                        })
 
                 elif fn_name == "list_dir":
                     sub = args.get("path", "")
@@ -748,7 +812,18 @@ def engineer_fix_code_error(file_path: str, line_number: int = None, error_outpu
 def inspect_command_failure(command: str, cwd: str = None, exit_code: int = -1, stdout: str = "", stderr: str = "", workspace_root: str = None) -> dict:
     try:
         combined_err = (stderr or "") + ("\n" + stdout if stdout else "")
-        target_dir = workspace_root if (workspace_root and os.path.exists(workspace_root)) else (cwd if (cwd and os.path.isabs(cwd) and os.path.exists(cwd)) else os.getcwd())
+        target_dir = None
+        if workspace_root and os.path.exists(workspace_root):
+            target_dir = workspace_root
+        elif cwd:
+            if os.path.isabs(cwd) and os.path.exists(cwd):
+                target_dir = cwd
+            elif workspace_root and os.path.exists(os.path.join(workspace_root, cwd)):
+                target_dir = os.path.join(workspace_root, cwd)
+            elif os.path.exists(os.path.abspath(cwd)):
+                target_dir = os.path.abspath(cwd)
+        if not target_dir:
+            target_dir = os.getcwd()
 
         detected_file = None
         detected_line = None
@@ -787,10 +862,14 @@ def inspect_command_failure(command: str, cwd: str = None, exit_code: int = -1, 
         if mod_match:
             missing_mod = mod_match.group(1)
             venv_python = None
-            for vn in [".venv", "venv"]:
-                cand = os.path.join(target_dir, vn, "Scripts", "python.exe" if os.name == "nt" else "python")
-                if os.path.exists(cand):
-                    venv_python = cand
+            search_dirs = [Path(target_dir).resolve()] + list(Path(target_dir).resolve().parents)[:3]
+            for s_dir in search_dirs:
+                for vn in [".venv", "venv", "env"]:
+                    cand = s_dir / vn / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
+                    if cand.exists():
+                        venv_python = str(cand)
+                        break
+                if venv_python:
                     break
 
             is_in_venv = False
@@ -827,7 +906,11 @@ def inspect_command_failure(command: str, cwd: str = None, exit_code: int = -1, 
                 "sklearn": "scikit-learn"
             }
             pip_pkg = pkg_map.get(missing_mod, missing_mod)
-            pip_cmd = f".\\.venv\\Scripts\\pip install {pip_pkg}" if venv_python else f"pip install {pip_pkg}"
+            if venv_python:
+                pip_cmd = f".\\.venv\\Scripts\\pip install {pip_pkg}"
+            else:
+                pip_cmd = f"python -m venv .venv && .\\.venv\\Scripts\\pip install {pip_pkg}"
+
             return {
                 "success": True,
                 "target_agent": "cli",

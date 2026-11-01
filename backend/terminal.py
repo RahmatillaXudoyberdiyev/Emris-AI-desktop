@@ -57,18 +57,24 @@ def prepare_virtualenv_execution(command: str, cwd: str) -> tuple[str, dict]:
     env = os.environ.copy()
     if not cwd or not os.path.exists(cwd):
         return command, env
-    root = Path(cwd)
+    root = Path(cwd).resolve()
     venv_dir = None
-    for name in [".venv", "venv"]:
-        cand = root / name
-        if cand.exists() and cand.is_dir():
-            venv_dir = cand
-            break
-    if not venv_dir:
-        return command, env
+    scripts_dir = None
 
-    scripts_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
-    if not scripts_dir.exists():
+    search_dirs = [root] + list(root.parents)[:3]
+    for s_dir in search_dirs:
+        for name in [".venv", "venv", "env"]:
+            cand = s_dir / name
+            if cand.exists() and cand.is_dir():
+                s_scripts = cand / ("Scripts" if os.name == "nt" else "bin")
+                if s_scripts.exists():
+                    venv_dir = cand
+                    scripts_dir = s_scripts
+                    break
+        if venv_dir:
+            break
+
+    if not venv_dir or not scripts_dir:
         return command, env
 
     env["PATH"] = str(scripts_dir) + os.pathsep + env.get("PATH", "")
@@ -76,14 +82,21 @@ def prepare_virtualenv_execution(command: str, cwd: str) -> tuple[str, dict]:
 
     rewritten = command.strip()
     sep = "\\" if os.name == "nt" else "/"
-    rel_scripts = f".{sep}{venv_dir.name}{sep}Scripts" if os.name == "nt" else f"./{venv_dir.name}/bin"
 
     for tool in ["python", "pip", "flask", "pytest", "uvicorn"]:
         pat = rf"^\$?{tool}(?:\.exe)?(\s+.*|$)"
         m = re.match(pat, rewritten, re.IGNORECASE)
         if m:
             rest = m.group(1)
-            rewritten = f"{rel_scripts}{sep}{tool}{rest}"
+            tool_exe = scripts_dir / (f"{tool}.exe" if os.name == "nt" else tool)
+            if tool_exe.exists():
+                try:
+                    rel_to_cwd = os.path.relpath(str(tool_exe), str(root))
+                    if not rel_to_cwd.startswith("."):
+                        rel_to_cwd = f".{sep}{rel_to_cwd}"
+                    rewritten = f"{rel_to_cwd}{rest}"
+                except Exception:
+                    rewritten = f'"{str(tool_exe)}"{rest}'
             break
     return rewritten, env
 

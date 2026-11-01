@@ -7,13 +7,30 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import threading
 
 project_root = Path(__file__).resolve().parent.parent
+backend_dir = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    if hasattr(sys, "_MEIPASS"):
+        meipass_path = Path(sys._MEIPASS)
+        if str(meipass_path) not in sys.path:
+            sys.path.insert(0, str(meipass_path))
+    exe_dir = Path(sys.executable).resolve().parent
+    if str(exe_dir) not in sys.path:
+        sys.path.insert(0, str(exe_dir))
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
-from backend.agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
-from backend.database import db
-from backend.terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
-from backend.gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
+try:
+    from backend.agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
+    from backend.database import db
+    from backend.terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
+    from backend.gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
+except ImportError:
+    from agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
+    from database import db
+    from terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
+    from gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
 
 class ApiRequestHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):

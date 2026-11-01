@@ -37,7 +37,10 @@ def get_persistent_device_id() -> str:
         pass
 
     try:
-        from backend.database import db
+        try:
+            from backend.database import db
+        except ImportError:
+            from database import db
         saved_id = db.get_setting("device_id", "")
         if saved_id:
             return saved_id

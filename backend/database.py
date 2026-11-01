@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -7,6 +8,11 @@ from pathlib import Path
 
 def get_db_path() -> Path:
     try:
+        if getattr(sys, "frozen", False):
+            app_data = os.getenv("APPDATA")
+            base_dir = Path(app_data) / "EmrisAI" if app_data else Path.home() / ".emris_ai"
+            base_dir.mkdir(parents=True, exist_ok=True)
+            return base_dir / "emris.db"
         ws_data = Path(__file__).resolve().parent.parent / "data"
         ws_data.mkdir(parents=True, exist_ok=True)
         return ws_data / "emris.db"
