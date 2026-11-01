@@ -1,5 +1,5 @@
 #define MyAppName "Emris AI Desktop"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.1-beta"
 #define MyAppPublisher "Emris AI"
 #define MyAppURL "https://github.com/RahmatillaXudoyberdiyev"
 #define MyAppExeName "EmrisAI.exe"
@@ -16,7 +16,7 @@ DefaultDirName={autopf}\EmrisAI
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=EmrisAI-Setup-v1.2.1
+OutputBaseFilename=EmrisAI-Setup-v1.2.1-beta
 SetupIconFile=backend\favicon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -28,7 +28,6 @@ VersionInfoCompany=Emris AI
 VersionInfoDescription=Emris AI Desktop Setup
 VersionInfoCopyright=Copyright (C) 2026 Emris AI. All rights reserved.
 VersionInfoProductName=Emris AI Desktop
-VersionInfoProductVersion=1.2.1
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

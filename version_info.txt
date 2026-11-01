@@ -21,7 +21,7 @@ VSVersionInfo(
         StringStruct('LegalCopyright', 'Copyright (C) 2026 Emris AI. All rights reserved.'),
         StringStruct('OriginalFilename', 'EmrisAI.exe'),
         StringStruct('ProductName', 'Emris AI Desktop'),
-        StringStruct('ProductVersion', '1.2.1.0')])
+        StringStruct('ProductVersion', '1.2.1-beta')])
       ]), 
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
