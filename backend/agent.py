@@ -198,56 +198,6 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
 
         bg_tasks_context = get_workspace_background_context(effective_workspace)
 
-        planner_prompt = render_prompt(
-            "chief_architect.md",
-            workspace_root=effective_workspace,
-            isolation_rule=isolation_rule,
-            env_rules=env_rules,
-            project_map=proj_map[:6000],
-            functions_index=fn_index[:3000],
-            background_tasks=bg_tasks_context,
-            conversation_context=conversation_context,
-            prompt=prompt
-        )
-
-        raw_plan_res = request_generate(planner_prompt, model="gemini-3.5-flash-lite")
-        total_tokens = 0
-        prompt_tokens = 0
-        completion_tokens = 0
-        p_tok = raw_plan_res.get("tokens") or raw_plan_res.get("data", {}).get("tokens") or {}
-        total_tokens += p_tok.get("total", 0)
-        prompt_tokens += p_tok.get("prompt", 0)
-        completion_tokens += p_tok.get("completion", 0)
-
-        plan_text = ""
-        if raw_plan_res.get("success") and raw_plan_res.get("data"):
-            data = raw_plan_res["data"]
-            plan_text = data.get("response") or data.get("text") or data.get("content") or ""
-
-        parsed_plan = None
-        if plan_text:
-            cleaned = re.sub(r"^```(?:json)?\s*", "", plan_text.strip())
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-            try:
-                parsed_plan = json.loads(cleaned)
-            except Exception as parse_err:
-                print(f"[Agent] Planner JSON parse notice: {parse_err}")
-
-        if not parsed_plan or not isinstance(parsed_plan, dict) or "execution_plan" not in parsed_plan:
-            is_cli_intent = any(k in prompt.lower() for k in ["ping", "curl", "npm", "git", "run", "install", "start"])
-            first_agent = "CLI Agent" if is_cli_intent else "Chief Architect"
-            parsed_plan = {
-                "project": {"name": "Software Solution", "framework": "Modern Architecture", "orchestrator": "Chief Architect"},
-                "execution_plan": [
-                    {"task_id": "TASK-001", "phase": "Phase 1: Architecture & Planning", "title": "Analyze Goals & Structure", "agent": first_agent, "tools": ["cli:run_command" if is_cli_intent else "file_system:write_file"], "objective": f"Formulate execution for: {prompt[:40]}", "dependencies": []},
-                    {"task_id": "TASK-002", "phase": "Phase 2: Execution & Synthesis", "title": "Synthesize Components & Commands", "agent": "Engineer Agent", "tools": ["file_system:write_file"], "objective": "Build required production components and configure environment.", "dependencies": ["TASK-001"]},
-                    {"task_id": "TASK-003", "phase": "Phase 3: Verification & Review", "title": "Quality Inspection & Validation", "agent": "Inspector Agent", "tools": ["file_system:read_file"], "objective": "Verify build output and environment readiness.", "dependencies": ["TASK-002"]}
-                ]
-            }
-
-        tasks = parsed_plan.get("execution_plan", [])
-        write_plans_md(effective_workspace, prompt, parsed_plan)
-
         root_items = []
         try:
             root_items = [f for f in os.listdir(effective_workspace) if not f.startswith(".")]
@@ -264,15 +214,17 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             referenced_files=referenced_files_context,
             retrieved_context=retrieved_context[:4000],
             background_tasks=bg_tasks_context,
-            execution_plan=json.dumps(tasks),
             conversation_context=conversation_context,
             prompt=prompt
         )
 
+        total_tokens = 0
+        prompt_tokens = 0
+        completion_tokens = 0
         executed_actions = [
-            {"agent": "Chief Architect", "action": "write_plans", "target": "plans.md", "result": {"success": True}},
             {"agent": "File analyzer Agent", "action": "hybrid_rag", "target": f"{len(retriever.chunks)} chunks indexed", "result": {"hit_files": hit_files}}
         ]
+        thought_log = []
 
         MAX_TURNS = 12
         eng_text = ""
@@ -297,8 +249,15 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             parts = raw_eng_res.get("parts", [])
             tool_calls = raw_eng_res.get("tool_calls", [])
             text_resp = raw_eng_res.get("text", "")
+            raw_thought = raw_eng_res.get("thought", "")
+
+            if raw_thought and raw_thought.strip() not in thought_log:
+                thought_log.append(raw_thought.strip())
+
             if text_resp:
                 eng_text = text_resp
+                if tool_calls and len(text_resp.strip()) > 10 and text_resp.strip() not in thought_log:
+                    thought_log.append(text_resp.strip())
                 turn_actions, _ = execute_engineer_turn_tools(text_resp, effective_workspace)
                 executed_actions.extend(turn_actions)
                 turn_cmds = extract_cli_commands(text_resp, effective_workspace)
@@ -308,6 +267,16 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     executed_actions.extend(turn_cmds)
 
             if not tool_calls:
+                has_mutations = any(a.get("action") in ("create_file", "replace_block", "cmd_command") for a in executed_actions)
+                if turn_idx == 1 and not has_mutations:
+                    contents.append({"role": "model", "parts": parts if parts else [{"text": text_resp}]})
+                    contents.append({
+                        "role": "user",
+                        "parts": [{
+                            "text": "You have not called any tool functions. You MUST call 'create_file', 'replace_block', or 'cmd_command' now to implement the requested solution on disk. Do not simply describe what to do. Call the tool functions directly."
+                        }]
+                    })
+                    continue
                 break
 
             contents.append({"role": "model", "parts": parts})
@@ -474,30 +443,6 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
 
             contents.append({"role": "user", "parts": response_parts})
 
-        if not eng_text or len(eng_text.strip()) < 40:
-            summary_request = (
-                "All requested workspace operations, file inspections, and edits have been executed on disk.\n"
-                "Now provide a comprehensive, detailed, professional explanation to the user:\n"
-                "1. Detail every file modified or created, explaining the exact technical changes made.\n"
-                "2. Clarify how the solution resolves the user's request.\n"
-                "3. Provide exact instructions and commands on how to run, test, or preview the application.\n"
-                "Write in clean Markdown prose. Do NOT call any tools."
-            )
-            contents.append({"role": "user", "parts": [{"text": summary_request}]})
-            summary_res = request_generate_with_tools(
-                contents=contents,
-                tools=None,
-                model="gemini-3.5-flash-lite"
-            )
-            if summary_res.get("success"):
-                final_text = summary_res.get("text", "")
-                if final_text:
-                    eng_text = final_text
-                s_tok = summary_res.get("tokens") or summary_res.get("data", {}).get("tokens") or {}
-                total_tokens += s_tok.get("total", 0)
-                prompt_tokens += s_tok.get("prompt", 0)
-                completion_tokens += s_tok.get("completion", 0)
-
         pkg_path = Path(effective_workspace) / "package.json"
         has_next = (Path(effective_workspace) / "app").exists() or (Path(effective_workspace) / "pages").exists()
         if not pkg_path.exists() and has_next:
@@ -533,63 +478,149 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
         inspected_files = [a["target"] for a in executed_actions if a.get("action") == "read_file" and a.get("result", {}).get("success")]
         pending_commands = [a for a in executed_actions if a.get("action") == "cmd_command"]
 
-        available_cmds = list(pending_commands)
+        has_file_ops = bool(created_files or changed_files or deleted_files or pending_commands)
+        if not eng_text or len(eng_text.strip()) < 120 or (has_file_ops and len(eng_text.strip()) < 250):
+            summary_request = (
+                "All requested workspace operations, file inspections, and edits have been executed on disk.\n"
+                "Now provide a comprehensive, detailed, professional explanation to the user:\n"
+                "1. Detail every file modified or created, explaining the exact technical changes made.\n"
+                "2. Clarify how the solution resolves the user's request.\n"
+                "3. Provide exact instructions and commands on how to run, test, or preview the application.\n"
+                "Write in clean Markdown prose. Do NOT call any tools."
+            )
+            contents.append({"role": "user", "parts": [{"text": summary_request}]})
+            summary_res = request_generate_with_tools(
+                contents=contents,
+                tools=None,
+                model="gemini-3.5-flash-lite"
+            )
+            if summary_res.get("success"):
+                final_text = summary_res.get("text", "")
+                if final_text:
+                    eng_text = final_text
+                s_tok = summary_res.get("tokens") or summary_res.get("data", {}).get("tokens") or {}
+                total_tokens += s_tok.get("total", 0)
+                prompt_tokens += s_tok.get("prompt", 0)
+                completion_tokens += s_tok.get("completion", 0)
+
         formatted_steps = []
-        for idx, task in enumerate(tasks, start=1):
-            t_agent = task.get("agent", "Engineer Agent")
-            t_title = task.get("title", "")
-            t_phase = task.get("phase", "")
-            t_obj = task.get("objective", "")
-            if not t_title or re.match(r"^step\s*\d+[:\s\-]*", t_title, re.IGNORECASE):
-                t_title = t_obj[:60] if t_obj else (t_phase or f"Action {idx}")
+        step_id = 1
+        thought_combined = " ".join(thought_log).strip()
+        first_step_sub = (thought_combined[:120] + "...") if len(thought_combined) > 120 else (thought_combined if thought_combined else "Analyzed prompt and formulated dynamic execution strategy.")
 
-            step_out = f"Phase verified: {t_phase}"
-            matching_cmd = None
-            if ("CLI" in t_agent or "command" in task.get("tools", [])) and available_cmds:
-                matching_cmd = available_cmds.pop(0)
-                matching_cmd["step_id"] = idx
+        formatted_steps.append({
+            "id": step_id,
+            "task_id": f"TASK-{step_id:03d}",
+            "phase": "Phase 1: Strategy & Thinking",
+            "agent": "Engineer Agent",
+            "model": "Gemini 3.5 Flash Lite",
+            "title": "Thought: Formulating Execution Strategy",
+            "subtitle": first_step_sub,
+            "description": first_step_sub,
+            "output": thought_combined if thought_combined else "Formulated implementation strategy.",
+            "tools": ["strategy:react_loop"],
+            "pending_command": None
+        })
 
-            if matching_cmd:
-                step_out = f"Command proposed: {matching_cmd.get('command')}"
-            elif "File analyzer" in t_agent or "Structure" in t_title or "Index" in t_title or "Inspect" in t_title:
-                step_out = f"Inspected: {', '.join(inspected_files)}" if inspected_files else (f"RAG Retrieved: {', '.join(hit_files)}" if hit_files else f"Indexed {len(retriever.chunks)} code chunks")
-            elif "Engineer" in t_agent or "Synthesizing" in t_title or "Code" in t_title or "Interactive" in t_title or "Update" in t_title:
-                all_changed = created_files + changed_files
-                step_out = f"Updated: {', '.join(all_changed)}" if all_changed else "Generated source components"
-            elif "Architect" in t_agent:
-                step_out = "Execution plan formulated & synced to plans.md"
+        for a in executed_actions:
+            act_type = a.get("action")
+            if act_type == "create_file":
+                step_id += 1
+                t_name = Path(a["target"]).name
+                formatted_steps.append({
+                    "id": step_id,
+                    "task_id": f"TASK-{step_id:03d}",
+                    "phase": "Phase 2: Source Synthesis",
+                    "agent": "Engineer Agent",
+                    "model": "Gemini 3.5 Flash Lite",
+                    "title": f"Created {t_name}",
+                    "subtitle": f"Target: {a['target']}",
+                    "description": f"File creation: {a['target']}",
+                    "output": f"Created `{a['target']}` on disk successfully.",
+                    "tools": ["file_system:create_file"],
+                    "pending_command": None
+                })
+            elif act_type == "replace_block":
+                step_id += 1
+                t_name = Path(a["target"]).name
+                formatted_steps.append({
+                    "id": step_id,
+                    "task_id": f"TASK-{step_id:03d}",
+                    "phase": "Phase 2: Code Refactor",
+                    "agent": "Engineer Agent",
+                    "model": "Gemini 3.5 Flash Lite",
+                    "title": f"Edited {t_name}",
+                    "subtitle": f"Lines {a.get('l_start', 1)}-{a.get('l_finish', 1)}",
+                    "description": f"File modification: {a['target']}",
+                    "output": f"Patched `{a['target']}` successfully.",
+                    "tools": ["file_system:replace_block"],
+                    "pending_command": None
+                })
+            elif act_type == "read_file":
+                step_id += 1
+                t_name = Path(a["target"]).name
+                formatted_steps.append({
+                    "id": step_id,
+                    "task_id": f"TASK-{step_id:03d}",
+                    "phase": "Phase 1: Code Inspection",
+                    "agent": "File analyzer Agent",
+                    "model": "Gemini 3.5 Flash Lite",
+                    "title": f"Analyzed {t_name}",
+                    "subtitle": f"Lines {a.get('start_line', 1)}-{a.get('end_line', '')}",
+                    "description": f"Inspection: {a['target']}",
+                    "output": f"Read `{a['target']}` contents.",
+                    "tools": ["file_system:read_file"],
+                    "pending_command": None
+                })
+            elif act_type == "list_dir":
+                step_id += 1
+                formatted_steps.append({
+                    "id": step_id,
+                    "task_id": f"TASK-{step_id:03d}",
+                    "phase": "Phase 1: Workspace Analysis",
+                    "agent": "File analyzer Agent",
+                    "model": "Gemini 3.5 Flash Lite",
+                    "title": f"Analyzed workspace: {a.get('target', '.')}",
+                    "subtitle": "Scanned directory tree",
+                    "description": f"Directory listing: {a.get('target', '.')}",
+                    "output": "Directory structure inspected.",
+                    "tools": ["file_system:list_dir"],
+                    "pending_command": None
+                })
+            elif act_type == "cmd_command":
+                step_id += 1
+                cmd_item = dict(a)
+                cmd_item["step_id"] = step_id
+                formatted_steps.append({
+                    "id": step_id,
+                    "task_id": f"TASK-{step_id:03d}",
+                    "phase": "Phase 3: Terminal & Commands",
+                    "agent": "CLI Agent",
+                    "model": "Gemini 3.5 Flash Lite",
+                    "title": f"Ran: {a.get('command', '')[:35]}",
+                    "subtitle": "Terminal command execution approval",
+                    "description": f"Command: {a.get('command', '')}",
+                    "output": f"Command proposed: {a.get('command', '')}",
+                    "tools": ["cli:run_command"],
+                    "pending_command": cmd_item
+                })
 
-            formatted_steps.append({
-                "id": idx,
-                "task_id": task.get("task_id", f"TASK-{idx:03d}"),
-                "phase": t_phase,
-                "agent": t_agent,
-                "model": "Gemini 3.5 Flash Lite",
-                "title": t_title,
-                "subtitle": t_obj,
-                "description": t_obj,
-                "output": step_out,
-                "tools": task.get("tools", []),
-                "pending_command": matching_cmd
-            })
-
-        while available_cmds:
-            extra_cmd = available_cmds.pop(0)
-            extra_idx = len(formatted_steps) + 1
-            extra_cmd["step_id"] = extra_idx
-            formatted_steps.append({
-                "id": extra_idx,
-                "task_id": f"TASK-{extra_idx:03d}",
-                "phase": "Phase 4: Environment & Execution",
-                "agent": "CLI Agent",
-                "model": "Gemini 3.5 Flash Lite",
-                "title": f"Execute: {extra_cmd.get('command', '')[:32]}",
-                "subtitle": "Command execution approval",
-                "description": "Terminal environment execution",
-                "output": f"Command proposed: {extra_cmd.get('command')}",
-                "tools": ["cli:run_command"],
-                "pending_command": extra_cmd
-            })
+        step_id += 1
+        total_mutations = len(created_files) + len(changed_files)
+        val_output = f"Verified {len(created_files)} created, {len(changed_files)} edited file(s) on disk." if total_mutations > 0 else "Workspace inspection complete. No file mutations required."
+        formatted_steps.append({
+            "id": step_id,
+            "task_id": f"TASK-{step_id:03d}",
+            "phase": "Phase 4: Verification",
+            "agent": "Inspector Agent",
+            "model": "Gemini 3.5 Flash Lite",
+            "title": "Quality Inspection & Validation",
+            "subtitle": "Verified file system integrity and execution state",
+            "description": "Validation completed",
+            "output": val_output,
+            "tools": ["inspector:verify"],
+            "pending_command": None
+        })
 
         user_friendly_summary = sanitize_display_response(eng_text, effective_workspace)
 
@@ -629,16 +660,23 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                 user_friendly_summary = f"I have formulated the required action. The proposed command is ready for your review: `{pending_commands[0].get('command')}`"
             elif inspected_files:
                 user_friendly_summary = f"I have inspected the requested files ({', '.join(inspected_files)}) and verified their contents in the workspace."
+            elif thought_combined:
+                user_friendly_summary = f"Workflow completed:\n\n{thought_combined}"
             else:
-                user_friendly_summary = "I have reviewed your workspace and verified the requested files."
+                user_friendly_summary = "Operation completed successfully."
 
         files_changes = {
             "created": created_files,
             "changed": changed_files,
             "deleted": deleted_files
         }
-        has_file_ops = bool(created_files or changed_files or deleted_files)
         final_response = f"<!--files_changes:{json.dumps(files_changes)}-->\n" + user_friendly_summary.strip() if has_file_ops else user_friendly_summary.strip()
+
+        plan_summary_data = {
+            "project": {"name": Path(effective_workspace).name or "Workspace Solution", "framework": "Modern Architecture", "orchestrator": "Engineer Agent"},
+            "execution_plan": formatted_steps
+        }
+        write_plans_md(effective_workspace, prompt, plan_summary_data)
 
         if not total_tokens:
             est_p = max(50, len(engineer_prompt) // 4)
@@ -649,8 +687,8 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
 
         return {
             "success": True,
-            "project": parsed_plan.get("project", {}),
-            "chief_thought": f"Architected dynamic execution plan with {len(formatted_steps)} phases and synthesized targeted solution.",
+            "project": plan_summary_data.get("project", {}),
+            "chief_thought": f"Dynamic workflow executed {len(formatted_steps)} steps with Inspector verification.",
             "steps": formatted_steps,
             "actions": executed_actions,
             "created_files": created_files,

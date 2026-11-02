@@ -208,6 +208,7 @@ def generate_with_gemini_tools(contents: list, tools: list = None, model: str = 
             parts = cand.get("content", {}).get("parts", [])
             tool_calls = []
             text_parts = []
+            thought_parts = []
             for p in parts:
                 if "functionCall" in p:
                     fc = p["functionCall"]
@@ -216,9 +217,12 @@ def generate_with_gemini_tools(contents: list, tools: list = None, model: str = 
                         "args": fc.get("args", {}),
                         "id": fc.get("id", "")
                     })
+                elif p.get("thought") or p.get("thoughtProcess"):
+                    thought_parts.append(p.get("text", ""))
                 elif "text" in p:
                     text_parts.append(p.get("text", ""))
             raw_text = "".join(text_parts)
+            raw_thought = "".join(thought_parts)
             usage = data.get("usageMetadata", {})
             tokens = {
                 "total": usage.get("totalTokenCount", 0),
@@ -230,8 +234,9 @@ def generate_with_gemini_tools(contents: list, tools: list = None, model: str = 
                 "parts": parts,
                 "tool_calls": tool_calls,
                 "text": raw_text,
+                "thought": raw_thought,
                 "tokens": tokens,
-                "data": {"response": raw_text, "text": raw_text, "tokens": tokens}
+                "data": {"response": raw_text, "text": raw_text, "thought": raw_thought, "tokens": tokens}
             }
     except Exception as exc:
         print(f"[Gateway] Gemini tools error: {exc}")

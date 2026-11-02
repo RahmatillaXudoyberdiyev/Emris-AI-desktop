@@ -483,7 +483,7 @@ export function useAgentWorkflow({
           steps: [
             {
               id: "init_thinking",
-              agent: "Chief Architect",
+              agent: "Engineer Agent",
               title: "Understanding the request",
               subtitle: "Analyzing requirements, dependencies, and workspace...",
               status: "running"
@@ -610,16 +610,16 @@ export function useAgentWorkflow({
           steps: [
             {
               id: "init_thinking",
-              agent: "Chief Architect",
+              agent: "Engineer Agent",
               title: "Understanding the request",
               subtitle: "Analyzed requirements and identified target workspace.",
               status: "done"
             },
             {
-              id: "arch_thinking",
-              agent: "Chief Architect",
-              title: "Structuring the architecture",
-              subtitle: "Formulating dynamic execution phases and specialized agent assignments...",
+              id: "exec_thinking",
+              agent: "Engineer Agent",
+              title: "Formulating execution strategy",
+              subtitle: "Analyzing codebase context and preparing dynamic tool execution...",
               status: "running"
             }
           ]
@@ -650,7 +650,7 @@ export function useAgentWorkflow({
       const planTasks = (agentResult?.steps && agentResult.steps.length > 0)
         ? agentResult.steps
         : [
-            { id: 1, agent: "Chief Architect", model: "Gemini 3.5 Flash Lite", title: "Architecture & Scaffolding", subtitle: "Scaffolding baseline components", description: "Architecture formulated", output: "Execution plan synced" },
+            { id: 1, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", title: "Strategy Formulation", subtitle: "Formulated dynamic execution steps", description: "Architecture formulated", output: "Execution strategy active" },
             { id: 2, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", title: "Synthesizing Source Files", subtitle: "Generating code components", description: "Synthesized files", output: "Source files created" },
             { id: 3, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", title: "Quality & Syntax Verification", subtitle: "Validating output completeness", description: "Verification complete", output: "QA verified" }
           ];
@@ -658,7 +658,7 @@ export function useAgentWorkflow({
       const executedActions = agentResult?.actions || [];
       const initialStep = {
         id: "init_thinking",
-        agent: "Chief Architect",
+        agent: "Engineer Agent",
         title: "Understanding the request",
         subtitle: "Analyzed requirements and identified target workspace.",
         status: "done"
