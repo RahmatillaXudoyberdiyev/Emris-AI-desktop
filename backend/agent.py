@@ -239,6 +239,9 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                 model="gemini-3.5-flash-lite"
             )
             if not raw_eng_res.get("success"):
+                err_msg = raw_eng_res.get("error", "API request failed")
+                if turn_idx == 1 and not eng_text:
+                    eng_text = f"API so'rovida xatolik yuz berdi: {err_msg}. Iltimos, API kalitingiz sozlanganini tekshiring."
                 break
 
             e_tok = raw_eng_res.get("tokens") or raw_eng_res.get("data", {}).get("tokens") or {}

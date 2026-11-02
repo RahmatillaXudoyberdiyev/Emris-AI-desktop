@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
 import uuid
@@ -9,14 +10,23 @@ from pathlib import Path
 
 def _load_env_file():
     try:
-        env_path = Path(__file__).resolve().parent.parent / ".env"
-        if env_path.exists():
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        os.environ[k.strip()] = v.strip()
+        candidates = []
+        app_data = os.getenv("APPDATA")
+        if app_data:
+            candidates.append(Path(app_data) / "EmrisAI" / ".env")
+        if getattr(sys, "frozen", False):
+            candidates.append(Path(sys.executable).resolve().parent / ".env")
+        candidates.append(Path(__file__).resolve().parent.parent / ".env")
+        candidates.append(Path.home() / ".emris_ai" / ".env")
+        for env_path in candidates:
+            if env_path.exists():
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            if k.strip() not in os.environ:
+                                os.environ[k.strip()] = v.strip()
     except Exception as exc:
         print(f"[Gateway] Env load notice: {exc}")
 
@@ -53,6 +63,17 @@ def get_persistent_device_id() -> str:
 
 def get_active_credentials() -> dict:
     gemini_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("EMRIS_DESKTOP_GEMINI_KEY", "")
+    if not gemini_key:
+        try:
+            try:
+                from backend.database import db
+            except ImportError:
+                from database import db
+            gemini_key = db.get_setting("gemini_api_key", "") or db.get_setting("api_key", "")
+            if gemini_key:
+                os.environ["GEMINI_API_KEY"] = gemini_key
+        except Exception:
+            pass
     groq_key = os.getenv("GROQ_API_KEY", "")
     kilo_key = os.getenv("KILO_API_KEY", "")
     return {

@@ -445,7 +445,7 @@ def launch_desktop_window():
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Desktop App — v1.2.2-beta",
+            title="Emris AI Desktop App — v1.2.3-beta",
             url=target_url,
             width=1360,
             height=860,
