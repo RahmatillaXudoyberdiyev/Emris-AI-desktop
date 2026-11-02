@@ -369,6 +369,10 @@ export const desktopApi = {
               const parsed = JSON.parse(jsonStr);
               if (parsed.type === "done") {
                 finalResult = parsed.result;
+                try {
+                  reader.cancel();
+                } catch (_) {}
+                return finalResult;
               } else if (onEvent) {
                 onEvent(parsed);
               }

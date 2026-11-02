@@ -309,6 +309,24 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             contents.append({"role": "model", "parts": parts})
             response_parts = []
 
+            if tool_calls and turn_idx == 1:
+                emit({
+                    "type": "step",
+                    "step": {
+                        "id": 1,
+                        "task_id": "TASK-001",
+                        "phase": "Phase 1: Strategy & Thinking",
+                        "agent": "Engineer Agent",
+                        "model": "Gemini 3.5 Flash Lite",
+                        "title": "Thought: Formulating Execution Strategy",
+                        "subtitle": "Analyzed prompt and formulated dynamic execution strategy.",
+                        "description": "Formulating execution strategy",
+                        "output": "Formulating execution strategy.",
+                        "tools": ["strategy:react_loop"],
+                        "status": "done"
+                    }
+                })
+
             for tc in tool_calls:
                 fn_name = tc.get("name")
                 args = tc.get("args", {})
@@ -751,6 +769,23 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     "pending_command": cmd_item,
                     "status": "running"
                 })
+
+        emit({
+            "type": "step",
+            "step": {
+                "id": 1,
+                "task_id": "TASK-001",
+                "phase": "Phase 1: Strategy & Thinking",
+                "agent": "Engineer Agent",
+                "model": "Gemini 3.5 Flash Lite",
+                "title": "Thought: Formulating Execution Strategy",
+                "subtitle": "Analyzed prompt and formulated dynamic execution strategy.",
+                "description": "Formulating execution strategy",
+                "output": "Formulating execution strategy.",
+                "tools": ["strategy:react_loop"],
+                "status": "done"
+            }
+        })
 
         step_id += 1
         total_mutations = len(created_files) + len(changed_files)

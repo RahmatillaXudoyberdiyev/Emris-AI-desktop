@@ -188,7 +188,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_cors_headers()
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Cache-Control", "no-cache")
-                self.send_header("Connection", "keep-alive")
+                self.send_header("Connection", "close")
                 self.end_headers()
 
                 def send_sse(evt_data):
@@ -201,6 +201,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
 
                 result = run_hierarchical_cycle(prompt, workspace, model, history, event_callback=send_sse)
                 send_sse({"type": "done", "result": result})
+                self.close_connection = True
                 return
 
             if path in ("/api/run_workflow", "/api/run_agent_workflow"):
