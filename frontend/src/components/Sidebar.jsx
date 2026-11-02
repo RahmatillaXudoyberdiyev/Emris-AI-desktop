@@ -96,7 +96,7 @@ export default function Sidebar({
             {t("sidebar.brand")}
           </span>
           <span className="px-2 py-0.5 rounded-md border border-[#3b82f6]/40 bg-[#1e293b]/50 text-[#3b82f6] text-[10px] font-mono font-medium">
-            v1.2.5-beta
+            v1.2.6-beta
           </span>
         </div>
       </div>

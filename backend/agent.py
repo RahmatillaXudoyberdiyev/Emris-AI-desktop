@@ -638,11 +638,14 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                 "3. Provide exact instructions and commands on how to run, test, or preview the application.\n"
                 "Write in clean Markdown prose. Do NOT call any tools."
             )
-            contents.append({"role": "user", "parts": [{"text": summary_request}]})
+            if contents and contents[-1].get("role") == "user":
+                contents[-1]["parts"].append({"text": summary_request})
+            else:
+                contents.append({"role": "user", "parts": [{"text": summary_request}]})
             summary_res = request_generate_with_tools(
                 contents=contents,
                 tools=None,
-                model="gemini-3.5-flash-lite"
+                model=model
             )
             if summary_res.get("success"):
                 final_text = summary_res.get("text", "")

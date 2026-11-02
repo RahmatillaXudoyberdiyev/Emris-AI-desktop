@@ -102,7 +102,7 @@ def generate_with_gemini_direct(prompt: str, model: str = "gemini-3.5-flash-lite
         api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("EMRIS_DESKTOP_GEMINI_KEY", "")
         if not api_key:
             return {"success": False, "error": "No GEMINI_API_KEY configured"}
-        model_name = "gemini-3.5-flash-lite"
+        model_name = model if model else "gemini-3.5-flash-lite"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         contents = []
         if history:
@@ -206,7 +206,7 @@ def generate_with_gemini_tools(contents: list, tools: list = None, model: str = 
         api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("EMRIS_DESKTOP_GEMINI_KEY", "")
         if not api_key:
             return {"success": False, "error": "No GEMINI_API_KEY configured"}
-        model_name = "gemini-3.5-flash-lite"
+        model_name = model if model else "gemini-3.5-flash-lite"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         payload = {
             "contents": contents,

@@ -104,7 +104,15 @@ export function useAgentWorkflow({
         tokens: cycleTokens || null
       };
       updateAgentState(convId, null);
-      const replyText = pendingReply || "Topshiriq muvaffaqiyatli bajarildi.";
+      let replyText = pendingReply;
+      if (!replyText || replyText.trim() === "") {
+        const doneActions = (updatedSteps || []).filter((s) => s.status === "done" && s.id !== "init_thinking");
+        if (doneActions.length > 0) {
+          replyText = "### Workspace Execution Completed\n\n" + doneActions.map((s) => `- **${s.title}**: ${s.subtitle || s.description || ""}`).join("\n");
+        } else {
+          replyText = "Topshiriq muvaffaqiyatli bajarildi.";
+        }
+      }
       const tokensHeader = cycleTokens?.total ? `<!--tokens:${JSON.stringify(cycleTokens)}-->\n` : "";
       const persisted = `${tokensHeader}<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;
       const savedMsg = await desktopApi.addMessage(convId, "assistant", persisted);
@@ -399,7 +407,8 @@ export function useAgentWorkflow({
         stepIndex + 1,
         curr.actions || [],
         curr.pendingResponse,
-        curr.workspaceRoot
+        curr.workspaceRoot,
+        curr.pendingTokens || null
       );
     } catch (err) {
       console.error("[useAgentWorkflow] handleContinueAnyway error:", err);
@@ -433,7 +442,8 @@ export function useAgentWorkflow({
         stepIndex + 1,
         curr.actions || [],
         curr.pendingResponse,
-        curr.workspaceRoot
+        curr.workspaceRoot,
+        curr.pendingTokens || null
       );
     } catch (err) {
       console.error("[useAgentWorkflow] handleRejectCommand error:", err);
