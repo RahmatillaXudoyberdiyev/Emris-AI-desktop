@@ -218,6 +218,16 @@ export default function AgentActivityCard({
                     <div className={`text-[13px] font-medium leading-snug flex items-center gap-1.5 flex-wrap ${isDoneStep ? "text-[#f4f4f5]" : isRunningStep ? "text-[#f8fafc]" : isErrorStep ? "text-[#fca5a5]" : "text-[#71717a]"}`}>
                       {renderStepActionPill(st.title, st)}
                       <span>{st.title || st.description}</span>
+                      {Boolean(st.lines_added && st.lines_added > 0) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-semibold">
+                          +{st.lines_added}
+                        </span>
+                      )}
+                      {Boolean(st.lines_removed && st.lines_removed > 0) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 font-mono text-[10px] font-semibold">
+                          -{st.lines_removed}
+                        </span>
+                      )}
                     </div>
                     {(st.subtitle || st.description) && (
                       <div className="text-xs text-[#94a3b8] leading-relaxed mt-0.5">

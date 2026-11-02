@@ -115,8 +115,15 @@ def classify_workflow_intent(prompt: str, has_project: bool = True, project_name
         return {"success": True, "workflow": "work" if has_project else "conversation"}
 
 
-def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite", history: list = None) -> dict:
+def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str = "gemini-3.5-flash-lite", history: list = None, event_callback: callable = None) -> dict:
     try:
+        def emit(evt):
+            if event_callback:
+                try:
+                    event_callback(evt)
+                except Exception as cb_err:
+                    print(f"[Agent] Event callback notice: {cb_err}")
+
         conversation_context = "No previous context."
         clean_history = []
         if history:
@@ -226,6 +233,23 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
         ]
         thought_log = []
 
+        emit({
+            "type": "step",
+            "step": {
+                "id": 1,
+                "task_id": "TASK-001",
+                "phase": "Phase 1: Strategy & Thinking",
+                "agent": "Engineer Agent",
+                "model": "Gemini 3.5 Flash Lite",
+                "title": "Thought: Formulating Execution Strategy",
+                "subtitle": "Analyzing prompt and formulating dynamic execution strategy...",
+                "description": "Formulating execution strategy",
+                "output": "Formulating execution strategy.",
+                "tools": ["strategy:react_loop"],
+                "status": "running"
+            }
+        })
+
         MAX_TURNS = 12
         eng_text = ""
         contents = [
@@ -310,12 +334,14 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             }
                         }
                     })
-                    executed_actions.append({
-                        "agent": "Engineer Agent",
+                    act_item = {
+                        "agent": "File analyzer Agent",
                         "action": "read_file",
                         "target": p,
                         "start_line": r_res.get("start_line"),
                         "end_line": r_res.get("end_line"),
+                        "lines_added": 0,
+                        "lines_removed": 0,
                         "result": {
                             "success": r_res.get("success"),
                             "path": p,
@@ -323,6 +349,25 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             "start_line": r_res.get("start_line"),
                             "end_line": r_res.get("end_line"),
                             "error": r_res.get("error")
+                        }
+                    }
+                    executed_actions.append(act_item)
+                    emit({
+                        "type": "step",
+                        "step": {
+                            "id": len(executed_actions) + 1,
+                            "task_id": f"TASK-{len(executed_actions) + 1:03d}",
+                            "phase": "Phase 1: Code Inspection",
+                            "agent": "File analyzer Agent",
+                            "model": "Gemini 3.5 Flash Lite",
+                            "title": f"Analyzed {Path(p).name}",
+                            "subtitle": f"Lines {r_res.get('start_line', 1)}-{r_res.get('end_line', '')}",
+                            "description": f"Inspection: {p}",
+                            "output": f"Read `{p}` contents.",
+                            "lines_added": 0,
+                            "lines_removed": 0,
+                            "tools": ["file_system:read_file"],
+                            "status": "done"
                         }
                     })
 
@@ -342,11 +387,33 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             }
                         }
                     })
-                    executed_actions.append({
+                    lines_add = c_res.get("lines_added", len(cnt.splitlines()) if cnt else 0)
+                    act_item = {
                         "agent": "Engineer Agent",
                         "action": "create_file",
                         "target": p,
+                        "lines_added": lines_add,
+                        "lines_removed": 0,
                         "result": {"success": c_res.get("success"), "error": c_res.get("error")}
+                    }
+                    executed_actions.append(act_item)
+                    emit({
+                        "type": "step",
+                        "step": {
+                            "id": len(executed_actions) + 1,
+                            "task_id": f"TASK-{len(executed_actions) + 1:03d}",
+                            "phase": "Phase 2: Source Synthesis",
+                            "agent": "Engineer Agent",
+                            "model": "Gemini 3.5 Flash Lite",
+                            "title": f"Created {Path(p).name}",
+                            "subtitle": f"Target: {p}",
+                            "description": f"File creation: {p}",
+                            "output": f"Created `{p}` on disk successfully.",
+                            "lines_added": lines_add,
+                            "lines_removed": 0,
+                            "tools": ["file_system:create_file"],
+                            "status": "done"
+                        }
                     })
 
                 elif fn_name == "replace_block":
@@ -367,13 +434,36 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             }
                         }
                     })
-                    executed_actions.append({
+                    l_add = rep_res.get("lines_added", len(r_str.splitlines()) if r_str else 0)
+                    l_rem = rep_res.get("lines_removed", len(s_str.splitlines()) if s_str else 0)
+                    act_item = {
                         "agent": "Engineer Agent",
                         "action": "replace_block",
                         "target": p,
                         "l_start": rep_res.get("l_start"),
                         "l_finish": rep_res.get("l_finish"),
+                        "lines_added": l_add,
+                        "lines_removed": l_rem,
                         "result": {"success": rep_res.get("success"), "error": rep_res.get("error")}
+                    }
+                    executed_actions.append(act_item)
+                    emit({
+                        "type": "step",
+                        "step": {
+                            "id": len(executed_actions) + 1,
+                            "task_id": f"TASK-{len(executed_actions) + 1:03d}",
+                            "phase": "Phase 2: Code Refactor",
+                            "agent": "Engineer Agent",
+                            "model": "Gemini 3.5 Flash Lite",
+                            "title": f"Edited {Path(p).name}",
+                            "subtitle": f"Lines {rep_res.get('l_start', 1)}-{rep_res.get('l_finish', 1)}",
+                            "description": f"File modification: {p}",
+                            "output": f"Patched `{p}` successfully.",
+                            "lines_added": l_add,
+                            "lines_removed": l_rem,
+                            "tools": ["file_system:replace_block"],
+                            "status": "done"
+                        }
                     })
 
                 elif fn_name == "cmd_command":
@@ -415,7 +505,7 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                                 }
                             }
                         })
-                        executed_actions.append({
+                        cmd_item = {
                             "id": f"cmd_{len(executed_actions) + 1}",
                             "agent": "CLI Agent",
                             "action": "cmd_command",
@@ -425,6 +515,26 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             "display_cwd": Path(effective_workspace).name or ".",
                             "pending_approval": True,
                             "result": {"status": "pending_approval"}
+                        }
+                        executed_actions.append(cmd_item)
+                        emit({
+                            "type": "step",
+                            "step": {
+                                "id": len(executed_actions) + 1,
+                                "task_id": f"TASK-{len(executed_actions) + 1:03d}",
+                                "phase": "Phase 3: Terminal & Commands",
+                                "agent": "CLI Agent",
+                                "model": "Gemini 3.5 Flash Lite",
+                                "title": f"Ran: {cmd_str[:35]}",
+                                "subtitle": "Terminal command execution approval",
+                                "description": f"Command: {cmd_str}",
+                                "output": f"Command proposed: {cmd_str}",
+                                "lines_added": 0,
+                                "lines_removed": 0,
+                                "tools": ["cli:run_command"],
+                                "pending_command": cmd_item,
+                                "status": "running"
+                            }
                         })
 
                 elif fn_name == "list_dir":
@@ -437,11 +547,30 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             "response": l_res
                         }
                     })
-                    executed_actions.append({
+                    act_item = {
                         "agent": "File analyzer Agent",
                         "action": "list_dir",
                         "target": sub or ".",
                         "result": l_res
+                    }
+                    executed_actions.append(act_item)
+                    emit({
+                        "type": "step",
+                        "step": {
+                            "id": len(executed_actions) + 1,
+                            "task_id": f"TASK-{len(executed_actions) + 1:03d}",
+                            "phase": "Phase 1: Workspace Analysis",
+                            "agent": "File analyzer Agent",
+                            "model": "Gemini 3.5 Flash Lite",
+                            "title": f"Analyzed workspace: {sub or '.'}",
+                            "subtitle": "Scanned directory tree",
+                            "description": f"Directory listing: {sub or '.'}",
+                            "output": "Directory structure inspected.",
+                            "lines_added": 0,
+                            "lines_removed": 0,
+                            "tools": ["file_system:list_dir"],
+                            "status": "done"
+                        }
                     })
 
             contents.append({"role": "user", "parts": response_parts})
@@ -540,8 +669,11 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     "subtitle": f"Target: {a['target']}",
                     "description": f"File creation: {a['target']}",
                     "output": f"Created `{a['target']}` on disk successfully.",
+                    "lines_added": a.get("lines_added", 0),
+                    "lines_removed": 0,
                     "tools": ["file_system:create_file"],
-                    "pending_command": None
+                    "pending_command": None,
+                    "status": "done"
                 })
             elif act_type == "replace_block":
                 step_id += 1
@@ -556,8 +688,11 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     "subtitle": f"Lines {a.get('l_start', 1)}-{a.get('l_finish', 1)}",
                     "description": f"File modification: {a['target']}",
                     "output": f"Patched `{a['target']}` successfully.",
+                    "lines_added": a.get("lines_added", 0),
+                    "lines_removed": a.get("lines_removed", 0),
                     "tools": ["file_system:replace_block"],
-                    "pending_command": None
+                    "pending_command": None,
+                    "status": "done"
                 })
             elif act_type == "read_file":
                 step_id += 1
@@ -572,8 +707,11 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     "subtitle": f"Lines {a.get('start_line', 1)}-{a.get('end_line', '')}",
                     "description": f"Inspection: {a['target']}",
                     "output": f"Read `{a['target']}` contents.",
+                    "lines_added": 0,
+                    "lines_removed": 0,
                     "tools": ["file_system:read_file"],
-                    "pending_command": None
+                    "pending_command": None,
+                    "status": "done"
                 })
             elif act_type == "list_dir":
                 step_id += 1
@@ -587,8 +725,11 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     "subtitle": "Scanned directory tree",
                     "description": f"Directory listing: {a.get('target', '.')}",
                     "output": "Directory structure inspected.",
+                    "lines_added": 0,
+                    "lines_removed": 0,
                     "tools": ["file_system:list_dir"],
-                    "pending_command": None
+                    "pending_command": None,
+                    "status": "done"
                 })
             elif act_type == "cmd_command":
                 step_id += 1
@@ -604,14 +745,17 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     "subtitle": "Terminal command execution approval",
                     "description": f"Command: {a.get('command', '')}",
                     "output": f"Command proposed: {a.get('command', '')}",
+                    "lines_added": 0,
+                    "lines_removed": 0,
                     "tools": ["cli:run_command"],
-                    "pending_command": cmd_item
+                    "pending_command": cmd_item,
+                    "status": "running"
                 })
 
         step_id += 1
         total_mutations = len(created_files) + len(changed_files)
         val_output = f"Verified {len(created_files)} created, {len(changed_files)} edited file(s) on disk." if total_mutations > 0 else "Workspace inspection complete. No file mutations required."
-        formatted_steps.append({
+        inspector_step = {
             "id": step_id,
             "task_id": f"TASK-{step_id:03d}",
             "phase": "Phase 4: Verification",
@@ -621,9 +765,14 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             "subtitle": "Verified file system integrity and execution state",
             "description": "Validation completed",
             "output": val_output,
+            "lines_added": 0,
+            "lines_removed": 0,
             "tools": ["inspector:verify"],
-            "pending_command": None
-        })
+            "pending_command": None,
+            "status": "done"
+        }
+        formatted_steps.append(inspector_step)
+        emit({"type": "step", "step": inspector_step})
 
         user_friendly_summary = sanitize_display_response(eng_text, effective_workspace)
 

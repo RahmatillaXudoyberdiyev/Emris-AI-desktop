@@ -336,6 +336,57 @@ export const desktopApi = {
     }
   },
 
+  async runAgentWorkflowStream(prompt, workspaceRoot = null, model = "gemini-3.5-flash-lite", history = [], onEvent = null) {
+    try {
+      const url = `${LOCAL_HTTP_BASE}/api/run_agent_stream`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, workspace_root: workspaceRoot, model, history })
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP stream status: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const block of lines) {
+          const trimmed = block.trim();
+          if (trimmed.startsWith("data:")) {
+            try {
+              const jsonStr = trimmed.replace(/^data:\s*/, "");
+              const parsed = JSON.parse(jsonStr);
+              if (parsed.type === "done") {
+                finalResult = parsed.result;
+              } else if (onEvent) {
+                onEvent(parsed);
+              }
+            } catch (pErr) {
+              console.warn("[API] SSE parse notice:", pErr);
+            }
+          }
+        }
+      }
+
+      if (finalResult) return finalResult;
+      return await this.runAgentWorkflow(prompt, workspaceRoot, model, history);
+    } catch (err) {
+      console.warn("[API] Stream fallback to standard API:", err);
+      return await this.runAgentWorkflow(prompt, workspaceRoot, model, history);
+    }
+  },
+
   async runAgentWorkflow(prompt, workspaceRoot = null, model = "gemini-3.5-flash-lite", history = []) {
     try {
       const api = await waitForApi();

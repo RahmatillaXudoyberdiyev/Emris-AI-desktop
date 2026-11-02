@@ -634,7 +634,51 @@ export function useAgentWorkflow({
         }))
         .filter((m) => m.content.length > 0);
 
-      const agentResult = await desktopApi.runAgentWorkflow(promptText, workspaceRoot, model, history);
+      const initialStep = {
+        id: "init_thinking",
+        agent: "Engineer Agent",
+        title: "Understanding the request",
+        subtitle: "Analyzed requirements and identified target workspace.",
+        status: "done"
+      };
+
+      const liveSteps = [initialStep];
+      let liveActions = [];
+
+      const onStreamEvent = (evt) => {
+        if (!evt) return;
+        if (evt.type === "step" && evt.step) {
+          const s = evt.step;
+          const existingIdx = liveSteps.findIndex((item) => item.id === s.id || item.task_id === s.task_id);
+          if (existingIdx !== -1) {
+            liveSteps[existingIdx] = { ...liveSteps[existingIdx], ...s };
+          } else {
+            liveSteps.push(s);
+          }
+
+          updateAgentState(convId, {
+            isRunning: true,
+            isInterrupted: false,
+            currentStage: `${s.agent || "Engineer Agent"} • ${s.title || "Working"}`,
+            workspaceRoot,
+            plan: {
+              title: "Thinking",
+              chief_thought: "Executing dynamic multi-agent workflow...",
+              steps: [...liveSteps]
+            },
+            actions: liveActions
+          });
+        }
+      };
+
+      const agentResult = await desktopApi.runAgentWorkflowStream(
+        promptText,
+        workspaceRoot,
+        model,
+        history,
+        onStreamEvent
+      );
+
       if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
 
       if (agentResult?.pending_commands && agentResult.pending_commands.length > 0 && setLatestTerminalTask) {
@@ -647,58 +691,23 @@ export function useAgentWorkflow({
         });
       }
 
-      const planTasks = (agentResult?.steps && agentResult.steps.length > 0)
+      const rawPlanTasks = (agentResult?.steps && agentResult.steps.length > 0)
         ? agentResult.steps
-        : [
-            { id: 1, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", title: "Strategy Formulation", subtitle: "Formulated dynamic execution steps", description: "Architecture formulated", output: "Execution strategy active" },
-            { id: 2, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", title: "Synthesizing Source Files", subtitle: "Generating code components", description: "Synthesized files", output: "Source files created" },
-            { id: 3, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", title: "Quality & Syntax Verification", subtitle: "Validating output completeness", description: "Verification complete", output: "QA verified" }
-          ];
+        : (liveSteps.filter((s) => s.id !== "init_thinking").length > 0
+            ? liveSteps.filter((s) => s.id !== "init_thinking")
+            : [
+                { id: 1, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", title: "Strategy Formulation", subtitle: "Formulated dynamic execution steps", description: "Architecture formulated", output: "Execution strategy active" },
+                { id: 2, agent: "Engineer Agent", model: "Gemini 3.5 Flash Lite", title: "Synthesizing Source Files", subtitle: "Generating code components", description: "Synthesized files", output: "Source files created" },
+                { id: 3, agent: "Inspector Agent", model: "Gemini 3.5 Flash Lite", title: "Quality & Syntax Verification", subtitle: "Validating output completeness", description: "Verification complete", output: "QA verified" }
+              ]);
 
-      const executedActions = agentResult?.actions || [];
-      const initialStep = {
-        id: "init_thinking",
-        agent: "Engineer Agent",
-        title: "Understanding the request",
-        subtitle: "Analyzed requirements and identified target workspace.",
-        status: "done"
-      };
-
-      const activeSteps = [
+      const executedActions = agentResult?.actions || liveActions;
+      const finalSteps = [
         initialStep,
-        ...planTasks.map((t, idx) => ({ ...t, status: idx === 0 ? "running" : "pending" }))
+        ...rawPlanTasks.map((t) => ({ ...t, status: t.pending_command?.pending_approval ? "running" : "done" }))
       ];
 
-      for (let i = 1; i < activeSteps.length; i++) {
-        activeSteps[i].status = "running";
-        updateAgentState(convId, {
-          isRunning: true,
-          isInterrupted: false,
-          currentStage: `${activeSteps[i].agent} • ${activeSteps[i].title}`,
-          workspaceRoot,
-          plan: { chief_thought: agentResult?.chief_thought || "Executing dynamic multi-agent workflow...", steps: [...activeSteps] },
-          actions: executedActions.slice(0, i)
-        });
-
-        await delay(350);
-
-        if (!activeSteps[i].pending_command?.pending_approval) {
-          activeSteps[i].status = "done";
-          updateAgentState(convId, {
-            isRunning: true,
-            isInterrupted: false,
-            currentStage: `${activeSteps[i].agent} • Completed ✓`,
-            workspaceRoot,
-            plan: { chief_thought: agentResult?.chief_thought || "Executing dynamic multi-agent workflow...", steps: [...activeSteps] },
-            actions: executedActions.slice(0, i)
-          });
-          await delay(80);
-        } else {
-          break;
-        }
-      }
-
-      const hasPendingCmd = activeSteps.some((s) => s.pending_command?.pending_approval);
+      const hasPendingCmd = finalSteps.some((s) => s.pending_command?.pending_approval);
       if (hasPendingCmd) {
         updateAgentState(convId, {
           isRunning: true,
@@ -707,7 +716,7 @@ export function useAgentWorkflow({
           workspaceRoot,
           plan: {
             chief_thought: agentResult?.chief_thought || "Action ready for user verification.",
-            steps: activeSteps
+            steps: finalSteps
           },
           actions: executedActions,
           pendingResponse: agentResult?.response || "Topshiriq muvaffaqiyatli tayyorlandi.",
@@ -717,7 +726,7 @@ export function useAgentWorkflow({
         return;
       }
 
-      await finalizeWorkflowCycle(convId, activeSteps, executedActions, agentResult?.response, agentResult?.tokens);
+      await finalizeWorkflowCycle(convId, finalSteps, executedActions, agentResult?.response, agentResult?.tokens);
     } catch (error) {
       console.error("[useAgentWorkflow] Submit prompt error:", error);
       isSubmittingRef.current = false;

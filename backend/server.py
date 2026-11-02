@@ -178,6 +178,31 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
             path = parsed.path
             body = self._read_json_body()
 
+            if path == "/api/run_agent_stream":
+                prompt = body.get("prompt", "")
+                workspace = body.get("workspace_root")
+                model = body.get("model", "gemini-3.5-flash-lite")
+                history = body.get("history", [])
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.end_headers()
+
+                def send_sse(evt_data):
+                    try:
+                        line = f"data: {json.dumps(evt_data)}\n\n"
+                        self.wfile.write(line.encode("utf-8"))
+                        self.wfile.flush()
+                    except Exception as sse_err:
+                        print(f"[Server] SSE push notice: {sse_err}")
+
+                result = run_hierarchical_cycle(prompt, workspace, model, history, event_callback=send_sse)
+                send_sse({"type": "done", "result": result})
+                return
+
             if path in ("/api/run_workflow", "/api/run_agent_workflow"):
                 prompt = body.get("prompt", "")
                 workspace = body.get("workspace_root")

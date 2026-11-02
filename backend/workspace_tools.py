@@ -353,7 +353,14 @@ def tool_create_file(path: str, content: str, workspace_root: str) -> dict:
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(sanitized)
         trigger_file_analyzer_hook(workspace_root)
-        return {"success": True, "path": path, "bytes": len(sanitized)}
+        lines_count = len(sanitized.splitlines())
+        return {
+            "success": True,
+            "path": path,
+            "bytes": len(sanitized),
+            "lines_added": lines_count,
+            "lines_removed": 0
+        }
     except Exception as exc:
         print(f"[WorkspaceTools] tool_create_file error on {path}: {exc}")
         return {"success": False, "error": str(exc)}
@@ -420,12 +427,16 @@ def tool_replace_block(path: str, search_str: str, replace_str: str, workspace_r
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(updated)
         trigger_file_analyzer_hook(workspace_root)
+        removed_lines = len(s_clean.splitlines())
+        added_lines = len(rep_clean.strip("\r\n").splitlines())
         return {
             "success": True,
             "path": path,
             "l_start": l_start,
             "l_finish": l_finish,
-            "replaced": True
+            "replaced": True,
+            "lines_added": added_lines,
+            "lines_removed": removed_lines
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
