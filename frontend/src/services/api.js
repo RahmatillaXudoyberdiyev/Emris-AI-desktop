@@ -539,5 +539,62 @@ export const desktopApi = {
       console.error("[API] updateConversationTitle error:", err);
       return false;
     }
+  },
+
+  async getCheckpoints(workspaceRoot) {
+    try {
+      const api = await waitForApi();
+      if (api?.get_checkpoints) {
+        const res = await api.get_checkpoints(workspaceRoot);
+        if (Array.isArray(res)) return res;
+      }
+      const query = `?workspace_root=${encodeURIComponent(workspaceRoot || "")}`;
+      const httpRes = await fetchLocalApi(`/api/checkpoints${query}`);
+      if (httpRes?.success && Array.isArray(httpRes.checkpoints)) {
+        return httpRes.checkpoints;
+      }
+      return [];
+    } catch (err) {
+      console.error("[API] getCheckpoints error:", err);
+      return [];
+    }
+  },
+
+  async revertCheckpoint(workspaceRoot, checkpointId) {
+    try {
+      const api = await waitForApi();
+      if (api?.revert_checkpoint) {
+        const res = await api.revert_checkpoint(workspaceRoot, checkpointId);
+        if (res) return res;
+      }
+      const httpRes = await fetchLocalApi("/api/revert_checkpoint", {
+        method: "POST",
+        body: JSON.stringify({ workspace_root: workspaceRoot, checkpoint_id: checkpointId })
+      });
+      if (httpRes) return httpRes;
+      return { success: false, error: "Network error" };
+    } catch (err) {
+      console.error("[API] revertCheckpoint error:", err);
+      return { success: false, error: String(err) };
+    }
+  },
+
+  async redoCheckpoint(workspaceRoot, checkpointId) {
+    try {
+      const api = await waitForApi();
+      if (api?.redo_checkpoint) {
+        const res = await api.redo_checkpoint(workspaceRoot, checkpointId);
+        if (res) return res;
+      }
+      const httpRes = await fetchLocalApi("/api/redo_checkpoint", {
+        method: "POST",
+        body: JSON.stringify({ workspace_root: workspaceRoot, checkpoint_id: checkpointId })
+      });
+      if (httpRes) return httpRes;
+      return { success: false, error: "Network error" };
+    } catch (err) {
+      console.error("[API] redoCheckpoint error:", err);
+      return { success: false, error: String(err) };
+    }
   }
 };

@@ -21,6 +21,15 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 try:
+    from backend.snapshots import init_checkpoint, finalize_checkpoint
+except ImportError:
+    try:
+        from snapshots import init_checkpoint, finalize_checkpoint
+    except ImportError:
+        def init_checkpoint(*args, **kwargs): return None
+        def finalize_checkpoint(*args, **kwargs): return False
+
+try:
     from backend.terminal import execute_shell_command, get_workspace_background_context, prepare_virtualenv_execution
     from backend.gateway import request_generate, request_generate_with_tools
     from backend.workspace_tools import (
@@ -146,6 +155,12 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                 print(f"[Agent] Workspace mkdir error: {me}")
         effective_workspace = workspace_root if workspace_root and os.path.exists(workspace_root) else os.getcwd()
         ensure_emris_memory(effective_workspace)
+        current_checkpoint = None
+        if effective_workspace and os.path.exists(effective_workspace):
+            try:
+                current_checkpoint = init_checkpoint(effective_workspace, prompt)
+            except Exception as chk_init_err:
+                print(f"[Agent] Snapshot init notice: {chk_init_err}")
 
         existing_subdirs = get_existing_subprojects(effective_workspace)
         _, explicit_sub = detect_and_prepare_subfolder(prompt, effective_workspace)
@@ -867,6 +882,11 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             "execution_plan": formatted_steps
         }
         write_plans_md(effective_workspace, prompt, plan_summary_data)
+        if effective_workspace and os.path.exists(effective_workspace):
+            try:
+                finalize_checkpoint(effective_workspace, current_checkpoint.get("id") if current_checkpoint else None, diff_summary=files_changes)
+            except Exception as chk_fin_err:
+                print(f"[Agent] Snapshot finalize notice: {chk_fin_err}")
 
         if not total_tokens:
             est_p = max(50, len(engineer_prompt) // 4)
@@ -885,6 +905,7 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             "changed_files": changed_files,
             "deleted_files": deleted_files,
             "files_changes": files_changes,
+            "checkpoint_id": current_checkpoint.get("id") if current_checkpoint else None,
             "pending_commands": pending_commands,
             "tokens": {
                 "total": total_tokens,

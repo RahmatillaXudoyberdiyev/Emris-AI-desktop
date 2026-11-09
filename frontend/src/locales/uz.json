@@ -2,11 +2,12 @@
   "header": {
     "workspace": "Ish maydoni:",
     "untitled": "Nomsiz sessiya",
+    "local_history": "Lokal tarix",
     "api_keys": "API Kalitlar"
   },
   "sidebar": {
     "brand": "Emris AI",
-    "version": "v1.2.6-beta",
+    "version": "v1.3.1-beta",
     "new_chat": "Yangi suhbat",
     "projects": "Loyihalar",
     "conversations": "Suhbatlar",
@@ -54,5 +55,18 @@
     "confirm_conversation": "Ushbu suhbatni o'chirmoqchimisiz?",
     "delete": "O'chirish",
     "cancel": "Bekor qilish"
+  },
+  "history": {
+    "title": "Lokal tarix",
+    "subtitle": "Ish maydoni tikanali tekshiruv nuqtalari (oxirgi 10 ta)",
+    "empty": "Hali tekshiruv nuqtalari mavjud emas.",
+    "revert": "Qaytarish / Bekor qilish",
+    "redo": "Qayta tiklash",
+    "reverted_tag": "Qaytarilgan",
+    "active_tag": "Joriy",
+    "files_affected": "ta fayl o'zgargan",
+    "restored_notice": "Fayllar asl holatiga muvaffaqiyatli qaytarildi!",
+    "redo_notice": "Qayta tiklash holati muvaffaqiyatli qo'llanildi!",
+    "close": "Yopish"
   }
 }

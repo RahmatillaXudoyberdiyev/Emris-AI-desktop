@@ -2,7 +2,15 @@ import React from "react";
 import AgentActivityCard from "./AgentActivityCard";
 import MarkdownRenderer from "./MarkdownRenderer";
 
-export default function ChatMessage({ message, currentModelLabel, onEditMessage, onDeleteMessage }) {
+export default function ChatMessage({
+  message,
+  currentModelLabel,
+  onEditMessage,
+  onDeleteMessage,
+  onOpenLocalHistory,
+  onRevertMessage,
+  onRedoMessage
+}) {
   const [copied, setCopied] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editContent, setEditContent] = React.useState(message.content || "");
@@ -44,46 +52,6 @@ export default function ChatMessage({ message, currentModelLabel, onEditMessage,
             <span className="text-[10px] uppercase tracking-wider font-semibold text-[#a1a1aa]">
               You
             </span>
-            <div className="flex items-center gap-1">
-              {!isEditing && onEditMessage && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditContent(message.content);
-                    setIsEditing(true);
-                  }}
-                  className="text-[#a1a1aa] hover:text-[#f4f4f5] p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer opacity-70 group-hover:opacity-100"
-                  title="Edit prompt"
-                >
-                  <i className="fa-regular fa-pen-to-square text-[10px]"></i>
-                </button>
-              )}
-              {!isEditing && onDeleteMessage && (
-                <button
-                  type="button"
-                  onClick={() => onDeleteMessage(message.id)}
-                  className="text-[#a1a1aa] hover:text-[#ef4444] p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer opacity-70 group-hover:opacity-100"
-                  title="Delete message and revert history"
-                >
-                  <i className="fa-regular fa-trash-can text-[10px]"></i>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="text-[#a1a1aa] hover:text-[#f4f4f5] p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer opacity-70 group-hover:opacity-100"
-                title="Copy prompt"
-              >
-                {copied ? (
-                  <>
-                    <i className="fa-solid fa-check text-[10px] text-[#10b981]"></i>
-                    <span className="text-[10px] text-[#10b981] font-medium">Copied</span>
-                  </>
-                ) : (
-                  <i className="fa-regular fa-copy text-[10px]"></i>
-                )}
-              </button>
-            </div>
           </div>
           {isEditing ? (
             <div className="space-y-2 mt-1">
@@ -124,9 +92,85 @@ export default function ChatMessage({ message, currentModelLabel, onEditMessage,
               </div>
             </div>
           ) : (
-            <div className="whitespace-pre-wrap text-[13px] select-text cursor-text selection:bg-[#3b82f6]/50 selection:text-white">
-              {message.content}
-            </div>
+            <>
+              <div className="whitespace-pre-wrap text-[13px] select-text cursor-text selection:bg-[#3b82f6]/50 selection:text-white">
+                {message.content}
+              </div>
+              <div className="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-[#3f3f46]/40 select-none">
+                {onOpenLocalHistory && (
+                  <button
+                    type="button"
+                    onClick={onOpenLocalHistory}
+                    className="text-[#a1a1aa] hover:text-[#f4f4f5] px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors opacity-75 hover:opacity-100"
+                    title="Local History"
+                  >
+                    <i className="fa-solid fa-clock-rotate-left text-[10px]"></i>
+                    <span className="hidden sm:inline text-[10px]">History</span>
+                  </button>
+                )}
+                {onRevertMessage && (
+                  <button
+                    type="button"
+                    onClick={() => onRevertMessage(message)}
+                    className="text-[#a1a1aa] hover:text-[#f59e0b] px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors opacity-75 hover:opacity-100"
+                    title="Undo workspace changes"
+                  >
+                    <i className="fa-solid fa-rotate-left text-[10px]"></i>
+                    <span className="hidden sm:inline text-[10px]">Undo</span>
+                  </button>
+                )}
+                {onRedoMessage && (
+                  <button
+                    type="button"
+                    onClick={() => onRedoMessage(message)}
+                    className="text-[#a1a1aa] hover:text-[#3b82f6] px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors opacity-75 hover:opacity-100"
+                    title="Redo reverted workspace changes"
+                  >
+                    <i className="fa-solid fa-rotate-right text-[10px]"></i>
+                    <span className="hidden sm:inline text-[10px]">Redo</span>
+                  </button>
+                )}
+                <div className="w-[1px] h-3 bg-[#3f3f46] mx-0.5 opacity-60"></div>
+                {onEditMessage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditContent(message.content);
+                      setIsEditing(true);
+                    }}
+                    className="text-[#a1a1aa] hover:text-[#f4f4f5] p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                    title="Edit prompt"
+                  >
+                    <i className="fa-regular fa-pen-to-square text-[10px]"></i>
+                  </button>
+                )}
+                {onDeleteMessage && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteMessage(message.id)}
+                    className="text-[#a1a1aa] hover:text-[#ef4444] p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                    title="Delete message"
+                  >
+                    <i className="fa-regular fa-trash-can text-[10px]"></i>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="text-[#a1a1aa] hover:text-[#f4f4f5] p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                  title="Copy prompt"
+                >
+                  {copied ? (
+                    <>
+                      <i className="fa-solid fa-check text-[10px] text-[#10b981]"></i>
+                      <span className="text-[10px] text-[#10b981] font-medium">Copied</span>
+                    </>
+                  ) : (
+                    <i className="fa-regular fa-copy text-[10px]"></i>
+                  )}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

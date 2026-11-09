@@ -88,6 +88,7 @@ class DatabaseManager:
                 """)
                 conn.commit()
                 print("[DB] Tables verified successfully.")
+            self.clean_empty_conversations()
         except Exception as exc:
             print(f"[DB] Error creating tables: {exc}")
 
@@ -161,13 +162,47 @@ class DatabaseManager:
             print(f"[DB] Error fetching conversations: {exc}")
             return []
 
-    def create_conversation(self, title: str = "New chat", project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
+    def clean_empty_conversations(self, project_id: str = None):
         try:
-            conv_id = str(uuid.uuid4())[:8]
-            now = datetime.utcnow().isoformat()
-            t_clean = (title or "New chat").strip()
             with self._get_connection() as conn:
                 cursor = conn.cursor()
+                if project_id:
+                    cursor.execute("""
+                        DELETE FROM conversations 
+                        WHERE project_id = ? 
+                        AND id NOT IN (SELECT DISTINCT conversation_id FROM messages);
+                    """, (project_id,))
+                else:
+                    cursor.execute("""
+                        DELETE FROM conversations 
+                        WHERE id NOT IN (SELECT DISTINCT conversation_id FROM messages);
+                    """)
+                conn.commit()
+                print("[DB] Cleaned empty conversations")
+                return True
+        except Exception as exc:
+            print(f"[DB] Error cleaning empty conversations: {exc}")
+            return False
+
+    def create_conversation(self, title: str = "New chat", project_id: str = None, model: str = "Gemini 3.5 Flash Lite"):
+        try:
+            self.clean_empty_conversations(project_id)
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                if project_id:
+                    cursor.execute("SELECT * FROM conversations WHERE project_id = ? ORDER BY created_at DESC LIMIT 1;", (project_id,))
+                else:
+                    cursor.execute("SELECT * FROM conversations WHERE project_id IS NULL ORDER BY created_at DESC LIMIT 1;")
+                last_row = cursor.fetchone()
+                if last_row:
+                    cursor.execute("SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ?;", (last_row["id"],))
+                    count_row = cursor.fetchone()
+                    if count_row and count_row["cnt"] == 0:
+                        return dict(last_row)
+
+                conv_id = str(uuid.uuid4())[:8]
+                now = datetime.utcnow().isoformat()
+                t_clean = (title or "New chat").strip()
                 cursor.execute(
                     "INSERT INTO conversations (id, project_id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?);",
                     (conv_id, project_id, t_clean, model, now, now)

@@ -26,11 +26,13 @@ try:
     from backend.database import db
     from backend.terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
     from backend.gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
+    from backend.snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 except ImportError:
     from agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from database import db
     from terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
     from gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
+    from snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 
 class ApiRequestHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
@@ -138,6 +140,12 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 with open(target, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
                 self._send_json({"success": True, "content": content})
+                return
+
+            if path == "/api/checkpoints":
+                workspace = params.get("workspace_root", [""])[0]
+                res = list_checkpoints(workspace)
+                self._send_json({"success": True, "checkpoints": res})
                 return
 
             dist_root = project_root / "frontend" / "dist"
@@ -294,6 +302,20 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 pid = body.get("process_id")
                 out = stop_shell_process(pid)
                 self._send_json(out)
+                return
+
+            if path == "/api/revert_checkpoint":
+                workspace = body.get("workspace_root", "")
+                chk_id = body.get("checkpoint_id", "")
+                res = revert_checkpoint(workspace, chk_id)
+                self._send_json(res)
+                return
+
+            if path == "/api/redo_checkpoint":
+                workspace = body.get("workspace_root", "")
+                chk_id = body.get("checkpoint_id", "")
+                res = redo_checkpoint(workspace, chk_id)
+                self._send_json(res)
                 return
 
             self._send_json({"error": "Endpoint not found"}, status=404)

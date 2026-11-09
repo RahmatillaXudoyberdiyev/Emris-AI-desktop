@@ -10,7 +10,8 @@ export default function Header({
   onOpenFolderModal,
   onUpdateTitle,
   isRightPanelOpen,
-  onToggleRightPanel
+  onToggleRightPanel,
+  onOpenLocalHistory
 }) {
   const { language, setLanguage, t } = useTranslation();
   const [isLangOpen, setIsLangOpen] = useState(false);
@@ -293,10 +294,12 @@ export default function Header({
 
         <button
           type="button"
+          onClick={onOpenLocalHistory}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1e1e22] hover:bg-[#27272a] border border-[#2e2e34] text-[#cbd5e1] hover:text-[#f8fafc] text-xs transition-colors cursor-pointer"
+          title={t("header.local_history")}
         >
-          <i className="fa-solid fa-key text-[#94a3b8] text-xs"></i>
-          <span>{t("header.api_keys")}</span>
+          <i className="fa-solid fa-clock-rotate-left text-[#3b82f6] text-xs"></i>
+          <span>{t("header.local_history")}</span>
         </button>
 
         {onToggleRightPanel && (

@@ -34,6 +34,7 @@ try:
     )
     from backend.agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from backend.server import start_local_api_server
+    from backend.snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 except ImportError:
     from database import db
     from terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
@@ -46,6 +47,7 @@ except ImportError:
     )
     from agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from server import start_local_api_server
+    from snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 
 if sys.stdout is None:
     sys.stdout = io.StringIO()
@@ -376,6 +378,27 @@ class DesktopBridge:
             print(f"[Desktop] update_conversation_title error: {exc}")
             return False
 
+    def get_checkpoints(self, workspace_root: str):
+        try:
+            return list_checkpoints(workspace_root)
+        except Exception as exc:
+            print(f"[Desktop] get_checkpoints error: {exc}")
+            return []
+
+    def revert_checkpoint(self, workspace_root: str, checkpoint_id: str):
+        try:
+            return revert_checkpoint(workspace_root, checkpoint_id)
+        except Exception as exc:
+            print(f"[Desktop] revert_checkpoint error: {exc}")
+            return {"success": False, "error": str(exc)}
+
+    def redo_checkpoint(self, workspace_root: str, checkpoint_id: str):
+        try:
+            return redo_checkpoint(workspace_root, checkpoint_id)
+        except Exception as exc:
+            print(f"[Desktop] redo_checkpoint error: {exc}")
+            return {"success": False, "error": str(exc)}
+
 
 def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
     try:
@@ -445,7 +468,7 @@ def launch_desktop_window():
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Desktop App — v1.2.6-beta",
+            title="Emris AI Desktop App — v1.3.1-beta",
             url=target_url,
             width=1360,
             height=860,

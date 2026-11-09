@@ -3,6 +3,15 @@ import re
 import shutil
 from pathlib import Path
 
+try:
+    from backend.snapshots import record_pre_mutation
+except ImportError:
+    try:
+        from snapshots import record_pre_mutation
+    except ImportError:
+        def record_pre_mutation(*args, **kwargs):
+            return False
+
 def is_safe_path(target_path: str, workspace_root: str) -> bool:
     try:
         if not workspace_root:
@@ -348,6 +357,10 @@ def tool_create_file(path: str, content: str, workspace_root: str) -> dict:
         full_path = Path(workspace_root) / path
         if not is_safe_path(str(full_path), workspace_root):
             return {"success": False, "error": "Access denied: outside sandbox"}
+        try:
+            record_pre_mutation(workspace_root, path)
+        except Exception as snap_err:
+            print(f"[WorkspaceTools] Snapshot pre-mutation notice: {snap_err}")
         full_path.parent.mkdir(parents=True, exist_ok=True)
         sanitized = sanitize_code_content(path, content)
         with open(full_path, "w", encoding="utf-8") as f:
@@ -372,6 +385,11 @@ def tool_replace_block(path: str, search_str: str, replace_str: str, workspace_r
             return {"success": False, "error": "Access denied: outside sandbox"}
         if not full_path.exists():
             return {"success": False, "error": "File does not exist"}
+
+        try:
+            record_pre_mutation(workspace_root, path)
+        except Exception as snap_err:
+            print(f"[WorkspaceTools] Snapshot pre-mutation notice: {snap_err}")
 
         with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
             data = f.read()

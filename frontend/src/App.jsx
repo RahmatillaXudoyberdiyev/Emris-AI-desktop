@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import CenterWorkspace from "./components/CenterWorkspace";
 import RightPanel from "./components/RightPanel";
 import ChooseFolderModal from "./components/ChooseFolderModal";
+import LocalHistoryDrawer from "./components/LocalHistoryDrawer";
 import { desktopApi } from "./services/api";
 import { useAgentWorkflow } from "./hooks/useAgentWorkflow";
 
@@ -15,6 +16,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [fileRefreshTrigger, setFileRefreshTrigger] = useState(0);
   const [latestTerminalTask, setLatestTerminalTask] = useState(null);
 
@@ -208,6 +210,30 @@ export default function App() {
     }
   };
 
+  const handleRevertMessage = async (msg) => {
+    try {
+      if (!activeProjObj?.path) return;
+      const res = await desktopApi.revertCheckpoint(activeProjObj.path, msg?.checkpoint_id);
+      if (res && res.success) {
+        setFileRefreshTrigger((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error("[App] Revert message error:", err);
+    }
+  };
+
+  const handleRedoMessage = async (msg) => {
+    try {
+      if (!activeProjObj?.path) return;
+      const res = await desktopApi.redoCheckpoint(activeProjObj.path, msg?.checkpoint_id);
+      if (res && res.success) {
+        setFileRefreshTrigger((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error("[App] Redo message error:", err);
+    }
+  };
+
   const activeProjObj = projects.find((p) => p.name === currentProject) || null;
 
   return (
@@ -236,6 +262,7 @@ export default function App() {
           onUpdateTitle={handleUpdateTitle}
           isRightPanelOpen={isRightPanelOpen}
           onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
+          onOpenLocalHistory={() => setIsHistoryDrawerOpen(true)}
         />
         <CenterWorkspace
           projects={projects}
@@ -254,6 +281,9 @@ export default function App() {
           onContinueAnyway={handleContinueAnyway}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          onOpenLocalHistory={() => setIsHistoryDrawerOpen(true)}
+          onRevertMessage={handleRevertMessage}
+          onRedoMessage={handleRedoMessage}
         />
       </main>
       <RightPanel
@@ -269,6 +299,12 @@ export default function App() {
         onClose={() => setIsFolderModalOpen(false)}
         onSelectFolder={handleFolderSelected}
         projects={projects}
+      />
+      <LocalHistoryDrawer
+        isOpen={isHistoryDrawerOpen}
+        onClose={() => setIsHistoryDrawerOpen(false)}
+        workspaceRoot={activeProjObj?.path}
+        onWorkspaceMutated={() => setFileRefreshTrigger((prev) => prev + 1)}
       />
     </div>
   );

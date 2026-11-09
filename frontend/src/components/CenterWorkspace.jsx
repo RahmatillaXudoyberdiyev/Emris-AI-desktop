@@ -22,7 +22,10 @@ export default function CenterWorkspace({
   onContinueAnyway,
   approvingStepId,
   onEditMessage,
-  onDeleteMessage
+  onDeleteMessage,
+  onOpenLocalHistory,
+  onRevertMessage,
+  onRedoMessage
 }) {
   const { t } = useTranslation();
   const [promptText, setPromptText] = useState("");
@@ -116,6 +119,9 @@ export default function CenterWorkspace({
                 currentModelLabel={currentModelLabel}
                 onEditMessage={onEditMessage}
                 onDeleteMessage={onDeleteMessage}
+                onOpenLocalHistory={onOpenLocalHistory}
+                onRevertMessage={onRevertMessage}
+                onRedoMessage={onRedoMessage}
               />
             ))}
 
