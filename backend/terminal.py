@@ -361,6 +361,15 @@ def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> d
         is_daemon = explicit_bg or mode.get("is_daemon", False)
         requires_supervision = mode.get("requires_supervision", True) and not explicit_bg
 
+        if is_daemon:
+            for existing_pid in list(active_processes.keys()):
+                old_proc = active_processes.get(existing_pid)
+                if old_proc and old_proc.poll() is None:
+                    old_cwd = getattr(old_proc, "_raw_cwd", "")
+                    if target_cwd and old_cwd and os.path.abspath(old_cwd) == os.path.abspath(target_cwd):
+                        print(f"[Terminal] Stopping previous background process PID {old_proc.pid} in [{target_cwd}] before re-running...")
+                        stop_shell_process(existing_pid)
+
         print(f"[Terminal] Executing command in [{target_cwd}]: {cmd_to_run} (daemon: {is_daemon}, supervised: {requires_supervision})")
 
         creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0

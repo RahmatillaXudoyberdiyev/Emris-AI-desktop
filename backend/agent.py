@@ -501,6 +501,24 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
 
                 elif fn_name == "cmd_command":
                     raw_cmd_str = args.get("command", "").strip()
+                    try:
+                        cmd_match = re.search(r"python(?:\.exe)?\s+(?:.*[/\\])?([a-zA-Z0-9_\-]+\.py)", raw_cmd_str, re.IGNORECASE)
+                        if cmd_match and effective_workspace and os.path.exists(effective_workspace):
+                            target_file_name = cmd_match.group(1).lower()
+                            helper_files = ["transliterate.py", "utils.py", "helpers.py", "helper.py", "models.py", "config.py", "database.py", "db.py"]
+                            if target_file_name in helper_files:
+                                possible_entries = ["bot.py", "main.py", "app.py", "server.py", "run.py"]
+                                found_entry = None
+                                for entry in possible_entries:
+                                    if os.path.exists(os.path.join(effective_workspace, entry)):
+                                        found_entry = entry
+                                        break
+                                if found_entry:
+                                    print(f"[Agent] Retargeting non-entrypoint command '{raw_cmd_str}' to main entrypoint '{found_entry}'")
+                                    raw_cmd_str = re.sub(rf"(python(?:\.exe)?\s+(?:.*[/\\])?){re.escape(cmd_match.group(1))}", rf"\g<1>{found_entry}", raw_cmd_str, flags=re.IGNORECASE)
+                    except Exception as e_retarget:
+                        print(f"[Agent] Retargeting error: {e_retarget}")
+
                     cmd_str, _ = prepare_virtualenv_execution(raw_cmd_str, effective_workspace)
 
                     already_queued = any(

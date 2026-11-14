@@ -63,6 +63,27 @@ export function useAgentWorkflow({
     });
   };
 
+  const persistWorkflowState = async (convId, workflowState, replyText) => {
+    try {
+      if (!convId) return;
+      const persisted = `<!--workflow:${JSON.stringify(workflowState)}-->\n${replyText}`;
+      const savedMsg = await desktopApi.addMessage(convId, "assistant", persisted);
+      const replyMsg = savedMsg || {
+        id: "asst_" + Date.now(),
+        conversation_id: convId,
+        role: "assistant",
+        content: persisted
+      };
+      setMessages((prev) => {
+        const withoutDup = (prev || []).filter((m) => m.id !== replyMsg.id);
+        return [...withoutDup, replyMsg];
+      });
+      await loadData();
+    } catch (err) {
+      console.error("[useAgentWorkflow] persistWorkflowState error:", err);
+    }
+  };
+
   const handleCancelAgent = async () => {
     if (!activeConvId) return;
     isSubmittingRef.current = false;
@@ -71,20 +92,30 @@ export function useAgentWorkflow({
     } catch (err) {
       console.error("[useAgentWorkflow] stop command error:", err);
     }
-    updateAgentState(activeConvId, (prev) => {
-      if (!prev) return null;
-      const haltedSteps = (prev.plan?.steps || []).map((s) =>
-        s.status === "running" ? { ...s, status: "interrupted", output: (s.output || "") + " [To'xtatildi • Interrupted]" } : s
-      );
-      return {
-        ...prev,
-        isRunning: false,
-        isInterrupted: true,
-        status: "interrupted",
-        currentStage: "To'xtatildi • Interrupted",
-        plan: prev.plan ? { ...prev.plan, steps: haltedSteps } : null
-      };
+    const curr = agentStatesByConv[activeConvId];
+    const haltedSteps = (curr?.plan?.steps || []).map((s) =>
+      s.status === "running" ? { ...s, status: "interrupted", output: (s.output || "") + " [To'xtatildi • Interrupted]" } : s
+    );
+    const interruptedWorkflow = {
+      status: "interrupted",
+      isInterrupted: true,
+      currentStage: "To'xtatildi • Interrupted",
+      plan: curr?.plan ? { ...curr.plan, steps: haltedSteps } : { chief_thought: "Jarayon to'xtatildi.", steps: haltedSteps },
+      actions: curr?.actions || []
+    };
+    updateAgentState(activeConvId, {
+      ...curr,
+      isRunning: false,
+      isInterrupted: true,
+      status: "interrupted",
+      currentStage: "To'xtatildi • Interrupted",
+      plan: curr?.plan ? { ...curr.plan, steps: haltedSteps } : null
     });
+    await persistWorkflowState(
+      activeConvId,
+      interruptedWorkflow,
+      "### ⚠️ Workflow Interrupted\n\nJarayon foydalanuvchi tomonidan to'xtatildi."
+    );
   };
 
   const handleDismissWorkflow = (targetConvId) => {
@@ -468,6 +499,13 @@ export function useAgentWorkflow({
           const stageName = inspectorDiag?.target_agent === "engineer"
             ? "Inspector Agent • Routed to Engineer (Code Auto-Fix)"
             : "Inspector Agent • Routed to CLI (Environment Fix)";
+          const failedWorkflow = {
+            status: "error",
+            isError: true,
+            currentStage: stageName,
+            plan: { ...curr.plan, steps: updatedSteps },
+            actions: curr.actions || []
+          };
           updateAgentState(activeConvId, (prev) => ({
             ...prev,
             isRunning: false,
@@ -476,6 +514,12 @@ export function useAgentWorkflow({
             currentStage: stageName,
             plan: { ...prev.plan, steps: updatedSteps }
           }));
+          const diagMsg = inspectorDiag?.what_is_wrong || inspectorDiag?.diagnosis || `Command exited with code ${res.exit_code}`;
+          await persistWorkflowState(
+            activeConvId,
+            failedWorkflow,
+            `### ⚠️ Workflow Execution Failed\n\n- **Error**: ${diagMsg}\n- **Command**: \`${cmdObj.command}\``
+          );
         }
       }
     } catch (err) {
@@ -837,18 +881,34 @@ export function useAgentWorkflow({
     } catch (error) {
       console.error("[useAgentWorkflow] Submit prompt error:", error);
       isSubmittingRef.current = false;
-      if (activeConvId) {
-        updateAgentState(activeConvId, (prev) => ({
+      const targetId = activeConvId || convId;
+      if (targetId) {
+        const errorSteps = [
+          { id: 1, agent: "Inspector Agent", title: "Execution Error", status: "error", output: String(error?.message || error) }
+        ];
+        const errorWorkflow = {
+          status: "error",
+          isError: true,
+          currentStage: "Workflow Error",
+          plan: {
+            chief_thought: "Kutilmagan xatolik yuz berdi.",
+            steps: errorSteps
+          },
+          actions: []
+        };
+        updateAgentState(targetId, (prev) => ({
           ...prev,
           isRunning: false,
           isError: true,
           status: "error",
           currentStage: "Workflow Error",
-          plan: prev?.plan || {
-            chief_thought: "Kutilmagan xatolik yuz berdi.",
-            steps: [{ id: 1, agent: "Inspector Agent", title: "Execution Error", status: "error", output: String(error?.message || error) }]
-          }
+          plan: prev?.plan || errorWorkflow.plan
         }));
+        await persistWorkflowState(
+          targetId,
+          errorWorkflow,
+          `### ⚠️ Workflow Error\n\n${String(error?.message || error)}`
+        );
       }
     }
   };

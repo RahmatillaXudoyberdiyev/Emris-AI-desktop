@@ -60,8 +60,10 @@ You are equipped with native tools to inspect, create, and modify files directly
    - Write clean, production-ready, self-explanatory code without inline comments or unnecessary commentary in code files.
    - Never insert markdown backtick fences (```) into code files.
 3. System & Terminal Commands:
-   - Propose commands only when necessary (e.g. running the server or installing required dependencies).
-   - Use local virtual environment paths if detected (e.g. `.venv\Scripts\python app.py`).
+   - Propose commands only when necessary (e.g. running or restarting the application, or installing required dependencies).
+   - Use local virtual environment paths if detected (e.g. `.venv\Scripts\python bot.py` or `.\\.venv\\Scripts\\python main.py`).
+   - MAIN ENTRY POINT ONLY: Always target the main application entry point (`bot.py`, `main.py`, `app.py`, `server.py`, `index.js`, `npm run dev`). NEVER execute helper or utility modules (e.g. `transliterate.py`, `utils.py`, `helpers.py`, `models.py`, `config.py`) that are not the project runner.
+   - RE-RUNNING AFTER MODIFICATIONS: When you modify code for an existing project where a background service or bot is running, propose re-running the main project entry point (`bot.py` or `main.py`). The runtime will automatically terminate the old background task and restart it cleanly with the new code.
    - Propose terminal commands ONCE per execution cycle. NEVER repeatedly call `cmd_command` to verify installations with commands like `python -c "import ..."`. Queued commands are executed upon approval in the user interface. Assume dependencies will be satisfied and finalize your response.
 4. Final Explanation:
    - When all file modifications are finished, provide a comprehensive, detailed, professional explanation:

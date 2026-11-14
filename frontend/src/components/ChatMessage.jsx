@@ -287,7 +287,15 @@ export default function ChatMessage({
       {workflow && (
         <AgentActivityCard
           isRunning={false}
-          currentStage="All workflow phases completed ✓"
+          isInterrupted={workflow.status === "interrupted" || workflow.isInterrupted}
+          currentStage={
+            workflow.currentStage ||
+            (workflow.status === "error" || workflow.isError || workflow.plan?.steps?.some((s) => s.status === "error")
+              ? "Workflow Execution Failed"
+              : workflow.status === "interrupted" || workflow.isInterrupted
+              ? "Workflow Interrupted"
+              : "All workflow phases completed ✓")
+          }
           plan={workflow.plan || { steps: workflow.steps }}
           actions={workflow.actions || []}
         />
