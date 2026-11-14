@@ -19,8 +19,11 @@ a = Analysis(
         'backend.workspace_tools',
         'backend.retrievers',
         'backend.prompt_loader',
+        'backend.snapshots',
         'webview',
-        'clr'
+        'clr',
+        'tkinter',
+        'tkinter.filedialog'
     ],
     hookspath=[],
     hooksconfig={},

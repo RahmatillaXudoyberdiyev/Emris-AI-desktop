@@ -86,35 +86,6 @@ load_env_file()
 
 def choose_folder_dialog():
     try:
-        if sys.platform == "win32":
-            cmd = [
-                "powershell",
-                "-NoProfile",
-                "-Sta",
-                "-NonInteractive",
-                "-ExecutionPolicy", "Bypass",
-                "-Command",
-                "Add-Type -AssemblyName System.Windows.Forms; "
-                "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
-                "$d.Description = 'Select Project Folder'; "
-                "$d.ShowNewFolderButton = $true; "
-                "$f = New-Object System.Windows.Forms.Form; "
-                "$f.TopMost = $true; "
-                "$f.StartPosition = 'CenterScreen'; "
-                "if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }; "
-                "$f.Dispose(); $d.Dispose();"
-            ]
-            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            res = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags, timeout=300)
-            selected = res.stdout.strip()
-            if selected and os.path.exists(selected):
-                resolved = str(Path(selected).resolve())
-                print(f"[Desktop] Selected directory via native dialog: {resolved}")
-                return resolved
-    except Exception as exc:
-        print(f"[Desktop] Native folder dialog error: {exc}")
-
-    try:
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
@@ -124,12 +95,23 @@ def choose_folder_dialog():
         root.destroy()
         if selected:
             resolved = str(Path(selected).resolve())
-            print(f"[Desktop] Selected directory via fallback: {resolved}")
+            print(f"[Desktop] Selected directory: {resolved}")
             return resolved
         return None
     except Exception as exc:
-        print(f"[Desktop] Folder dialog fallback error: {exc}")
-        return None
+        print(f"[Desktop] Folder dialog error: {exc}")
+
+    try:
+        if getattr(webview, "windows", None) and len(webview.windows) > 0:
+            result = webview.windows[0].create_file_dialog(getattr(webview, "FOLDER_DIALOG", 10))
+            if result and len(result) > 0 and result[0]:
+                resolved = str(Path(result[0]).resolve())
+                print(f"[Desktop] Selected directory via webview: {resolved}")
+                return resolved
+    except Exception as exc:
+        print(f"[Desktop] Webview folder dialog error: {exc}")
+
+    return None
 
 
 class DesktopBridge:
@@ -468,7 +450,7 @@ def launch_desktop_window():
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Desktop App — v1.3.1-beta",
+            title="Emris AI Desktop App — v1.3.2-beta",
             url=target_url,
             width=1360,
             height=860,
