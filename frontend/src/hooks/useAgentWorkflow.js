@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { desktopApi } from "../services/api";
 
 export function useAgentWorkflow({
@@ -15,6 +15,36 @@ export function useAgentWorkflow({
 }) {
   const [agentStatesByConv, setAgentStatesByConv] = useState({});
   const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkBgErrors = async () => {
+      try {
+        const errors = await desktopApi.getBackgroundErrors();
+        if (!isMounted) return;
+        if (Array.isArray(errors) && errors.length > 0) {
+          const latest = errors[errors.length - 1];
+          if (latest && setLatestTerminalTask) {
+            setLatestTerminalTask({
+              command: latest.command,
+              cwd: latest.cwd,
+              stdout: "",
+              stderr: latest.error || `Process PID ${latest.pid} exited with code ${latest.exit_code}`,
+              exit_code: latest.exit_code || 1
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[useAgentWorkflow] checkBgErrors error:", err);
+      }
+    };
+
+    const interval = setInterval(checkBgErrors, 3500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [setLatestTerminalTask]);
 
   const activeConvId = activeConversation ? String(activeConversation.id) : null;
   const agentState = activeConvId ? (agentStatesByConv[activeConvId] || null) : null;
@@ -205,6 +235,73 @@ export function useAgentWorkflow({
       }
       const curr = agentStatesByConv[activeConvId];
       if (!curr?.plan) return;
+
+      if (res.stopped_by_user) {
+        setApprovingStepId(null);
+        isSubmittingRef.current = false;
+        const stepIndex = (curr.plan.steps || []).findIndex((s) => s.id === stepId);
+        const updatedSteps = (curr.plan.steps || []).map((s) => {
+          if (s.id === stepId) {
+            return {
+              ...s,
+              status: "done",
+              output: "Process stopped by user.",
+              pending_command: {
+                ...s.pending_command,
+                pending_approval: false,
+                exit_code: 0,
+                execution_output: "Process stopped by user."
+              }
+            };
+          }
+          return s;
+        });
+        if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
+        await resumeWorkflowFromStep(
+          activeConvId,
+          updatedSteps,
+          stepIndex + 1,
+          curr.actions || [],
+          curr.pendingResponse,
+          curr.workspaceRoot,
+          curr.pendingTokens || null
+        );
+        return;
+      }
+
+      if (res.is_running || res.is_daemon) {
+        setApprovingStepId(null);
+        isSubmittingRef.current = false;
+        const stepIndex = (curr.plan.steps || []).findIndex((s) => s.id === stepId);
+        const updatedSteps = (curr.plan.steps || []).map((s) => {
+          if (s.id === stepId) {
+            return {
+              ...s,
+              status: "done",
+              output: res.stdout || `Background process active (PID: ${res.process_id || "Active"}) • Running in background`,
+              pending_command: {
+                ...s.pending_command,
+                pending_approval: false,
+                exit_code: 0,
+                execution_output: res.stdout || `Background process active (PID: ${res.process_id})`
+              }
+            };
+          }
+          return s;
+        });
+        if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
+        await resumeWorkflowFromStep(
+          activeConvId,
+          updatedSteps,
+          stepIndex + 1,
+          curr.actions || [],
+          curr.pendingResponse,
+          curr.workspaceRoot,
+          curr.pendingTokens || null
+        );
+        return;
+      }
+
       const isOk = res.exit_code === 0;
 
       let inspectorDiag = null;

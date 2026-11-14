@@ -24,13 +24,25 @@ if str(backend_dir) not in sys.path:
 try:
     from backend.agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from backend.database import db
-    from backend.terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
+    from backend.terminal import (
+        execute_shell_command,
+        stop_shell_process,
+        get_active_shell_processes,
+        get_background_task_errors,
+        clear_background_error
+    )
     from backend.gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
     from backend.snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 except ImportError:
     from agent import run_hierarchical_cycle, generate_conversation_title, run_conversational_cycle, inspect_command_failure, classify_workflow_intent
     from database import db
-    from terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
+    from terminal import (
+        execute_shell_command,
+        stop_shell_process,
+        get_active_shell_processes,
+        get_background_task_errors,
+        clear_background_error
+    )
     from gateway import get_device_quota, check_gateway_health, request_generate, get_persistent_device_id, fetch_remote_keys
     from snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 
@@ -146,6 +158,10 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 workspace = params.get("workspace_root", [""])[0]
                 res = list_checkpoints(workspace)
                 self._send_json({"success": True, "checkpoints": res})
+                return
+
+            if path in ("/api/terminal/background_errors", "/api/background_errors"):
+                self._send_json({"success": True, "errors": get_background_task_errors()})
                 return
 
             dist_root = project_root / "frontend" / "dist"
@@ -302,6 +318,12 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 pid = body.get("process_id")
                 out = stop_shell_process(pid)
                 self._send_json(out)
+                return
+
+            if path in ("/api/terminal/clear_background_error", "/api/clear_background_error"):
+                pid = body.get("process_id")
+                res = clear_background_error(pid)
+                self._send_json({"success": res})
                 return
 
             if path == "/api/revert_checkpoint":

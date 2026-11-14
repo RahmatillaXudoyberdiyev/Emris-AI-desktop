@@ -336,6 +336,40 @@ export const desktopApi = {
     }
   },
 
+  async getBackgroundErrors() {
+    try {
+      const api = await waitForApi();
+      if (api?.get_background_errors) {
+        const res = await api.get_background_errors();
+        if (res?.success && Array.isArray(res.errors)) return res.errors;
+      }
+      const httpRes = await fetchLocalApi("/api/terminal/background_errors");
+      if (httpRes?.success && Array.isArray(httpRes.errors)) return httpRes.errors;
+      return [];
+    } catch (err) {
+      console.error("[API] getBackgroundErrors error:", err);
+      return [];
+    }
+  },
+
+  async clearBackgroundError(processId = null) {
+    try {
+      const api = await waitForApi();
+      if (api?.clear_background_error) {
+        await api.clear_background_error(processId);
+        return true;
+      }
+      await fetchLocalApi("/api/terminal/clear_background_error", {
+        method: "POST",
+        body: JSON.stringify({ process_id: processId })
+      });
+      return true;
+    } catch (err) {
+      console.error("[API] clearBackgroundError error:", err);
+      return false;
+    }
+  },
+
   async runAgentWorkflowStream(prompt, workspaceRoot = null, model = "gemini-3.5-flash-lite", history = [], onEvent = null) {
     try {
       const url = `${LOCAL_HTTP_BASE}/api/run_agent_stream`;

@@ -24,7 +24,13 @@ if str(backend_dir) not in sys.path:
 
 try:
     from backend.database import db
-    from backend.terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
+    from backend.terminal import (
+        execute_shell_command,
+        stop_shell_process,
+        get_active_shell_processes,
+        get_background_task_errors,
+        clear_background_error
+    )
     from backend.gateway import (
         get_device_quota,
         check_gateway_health,
@@ -37,7 +43,13 @@ try:
     from backend.snapshots import list_checkpoints, revert_checkpoint, redo_checkpoint
 except ImportError:
     from database import db
-    from terminal import execute_shell_command, stop_shell_process, get_active_shell_processes
+    from terminal import (
+        execute_shell_command,
+        stop_shell_process,
+        get_active_shell_processes,
+        get_background_task_errors,
+        clear_background_error
+    )
     from gateway import (
         get_device_quota,
         check_gateway_health,
@@ -228,6 +240,20 @@ class DesktopBridge:
         except Exception as exc:
             print(f"[Desktop] get_active_processes error: {exc}")
             return {"success": False, "processes": []}
+
+    def get_background_errors(self):
+        try:
+            return {"success": True, "errors": get_background_task_errors()}
+        except Exception as exc:
+            print(f"[Desktop] get_background_errors error: {exc}")
+            return {"success": False, "errors": []}
+
+    def clear_background_error(self, process_id: str = None):
+        try:
+            return {"success": clear_background_error(process_id)}
+        except Exception as exc:
+            print(f"[Desktop] clear_background_error error: {exc}")
+            return {"success": False}
 
     def get_quota(self):
         try:
@@ -450,7 +476,7 @@ def launch_desktop_window():
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Desktop App — v1.3.2-beta",
+            title="Emris AI Desktop App — v1.3.3-beta",
             url=target_url,
             width=1360,
             height=860,
