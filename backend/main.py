@@ -98,30 +98,31 @@ load_env_file()
 
 def choose_folder_dialog():
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        selected = filedialog.askdirectory(parent=root, title="Select Project Folder")
-        root.destroy()
-        if selected:
-            resolved = str(Path(selected).resolve())
-            print(f"[Desktop] Selected directory: {resolved}")
-            return resolved
-        return None
-    except Exception as exc:
-        print(f"[Desktop] Folder dialog error: {exc}")
-
-    try:
         if getattr(webview, "windows", None) and len(webview.windows) > 0:
             result = webview.windows[0].create_file_dialog(getattr(webview, "FOLDER_DIALOG", 10))
             if result and len(result) > 0 and result[0]:
                 resolved = str(Path(result[0]).resolve())
                 print(f"[Desktop] Selected directory via webview: {resolved}")
                 return resolved
+            return None
     except Exception as exc:
         print(f"[Desktop] Webview folder dialog error: {exc}")
+
+    try:
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.ValidateNames = $false; $f.CheckFileExists = $false; $f.CheckPathExists = $true; $f.FileName = 'Select Folder'; if($f.ShowDialog() -eq 'OK'){ [System.IO.Path]::GetDirectoryName($f.FileName) }"
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        out = res.stdout.strip()
+        if out and os.path.exists(out):
+            resolved = str(Path(out).resolve())
+            print(f"[Desktop] Selected directory via modern dialog: {resolved}")
+            return resolved
+    except Exception as exc:
+        print(f"[Desktop] Modern folder dialog error: {exc}")
 
     return None
 
@@ -476,7 +477,7 @@ def launch_desktop_window():
         bridge_api = DesktopBridge()
 
         window = webview.create_window(
-            title="Emris AI Desktop App — v1.3.4-beta",
+            title="Emris AI Desktop App — v1.3.5-beta",
             url=target_url,
             width=1360,
             height=860,

@@ -662,32 +662,52 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
         pending_commands = [a for a in executed_actions if a.get("action") == "cmd_command"]
 
         has_file_ops = bool(created_files or changed_files or deleted_files or pending_commands)
-        if not eng_text or len(eng_text.strip()) < 120 or (has_file_ops and len(eng_text.strip()) < 250):
-            summary_request = (
-                "All requested workspace operations, file inspections, and edits have been executed on disk.\n"
-                "Now provide a comprehensive, detailed, professional explanation to the user:\n"
-                "1. Detail every file modified or created, explaining the exact technical changes made.\n"
-                "2. Clarify how the solution resolves the user's request.\n"
-                "3. Provide exact instructions and commands on how to run, test, or preview the application.\n"
-                "Write in clean Markdown prose. Do NOT call any tools."
-            )
-            if contents and contents[-1].get("role") == "user":
-                contents[-1]["parts"].append({"text": summary_request})
-            else:
-                contents.append({"role": "user", "parts": [{"text": summary_request}]})
-            summary_res = request_generate_with_tools(
-                contents=contents,
-                tools=None,
-                model=model
-            )
-            if summary_res.get("success"):
-                final_text = summary_res.get("text", "")
-                if final_text:
-                    eng_text = final_text
-                s_tok = summary_res.get("tokens") or summary_res.get("data", {}).get("tokens") or {}
-                total_tokens += s_tok.get("total", 0)
-                prompt_tokens += s_tok.get("prompt", 0)
-                completion_tokens += s_tok.get("completion", 0)
+        if not eng_text or len(eng_text.strip()) < 150 or (has_file_ops and len(eng_text.strip()) < 300):
+            try:
+                files_summary_list = []
+                for a in executed_actions:
+                    act = a.get("action")
+                    tgt = a.get("target", "")
+                    if act == "create_file" and a.get("result", {}).get("success"):
+                        files_summary_list.append(f"- Created file: `{tgt}` ({a.get('lines_added', 0)} lines)")
+                    elif act == "replace_block" and a.get("result", {}).get("success"):
+                        files_summary_list.append(f"- Modified file: `{tgt}` (replaced block L{a.get('l_start', 1)}-L{a.get('l_finish', 1)})")
+                    elif act == "read_file" and a.get("result", {}).get("success"):
+                        files_summary_list.append(f"- Inspected file: `{tgt}` (L{a.get('start_line', 1)}-L{a.get('end_line', '')})")
+                    elif act == "cmd_command":
+                        files_summary_list.append(f"- Proposed command: `{a.get('command', '')}`")
+
+                actions_summary_str = "\n".join(files_summary_list) if files_summary_list else "Workspace files inspected."
+                thought_str = " ".join(thought_log).strip()
+
+                synthesis_prompt = (
+                    f"User Request / Goal:\n{prompt}\n\n"
+                    f"Workspace Operations Executed:\n{actions_summary_str}\n\n"
+                    f"Internal Technical Thoughts & Strategy:\n{thought_str[:1500]}\n\n"
+                    "Now write a comprehensive, human-friendly, professional final explanation for the user:\n"
+                    "1. Root Cause Analysis (What was wrong): Explain what was causing the bug, issue, or limitation in the previous implementation with clear technical reasoning.\n"
+                    "2. How It Was Fixed: Explain what you changed and why this resolves the issue cleanly and effectively.\n"
+                    "3. Files & Changes: Summarize the files created or modified and the key logic introduced.\n"
+                    "4. Verification & Testing: Provide exact steps or commands to run and test the application.\n\n"
+                    "Requirements:\n"
+                    "- Respond in the same language as the user's prompt (Uzbek, Russian, or English).\n"
+                    "- Write in a warm, insightful, collaborative tone (like a senior tech lead).\n"
+                    "- Do NOT output raw step titles, logs, or robotic bullet lists like 'Thought: Formulating Execution Strategy'.\n"
+                    "- Use clean, standard Markdown with clear headings."
+                )
+
+                summary_res = request_generate(synthesis_prompt, model=model)
+                if summary_res.get("success"):
+                    s_data = summary_res.get("data") or {}
+                    candidate_text = s_data.get("response") or s_data.get("text") or summary_res.get("text") or ""
+                    if candidate_text and len(candidate_text.strip()) > 50:
+                        eng_text = candidate_text.strip()
+                    s_tok = summary_res.get("tokens") or s_data.get("tokens") or {}
+                    total_tokens += s_tok.get("total", 0)
+                    prompt_tokens += s_tok.get("prompt", 0)
+                    completion_tokens += s_tok.get("completion", 0)
+            except Exception as synth_err:
+                print(f"[Agent] Synthesis summary error: {synth_err}")
 
         formatted_steps = []
         step_id = 1
@@ -864,29 +884,28 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
             user_friendly_summary = (user_friendly_summary.strip() + f"\n\n**Application is running at:** [{running_url}]({running_url})").strip()
 
         if not user_friendly_summary or len(user_friendly_summary.strip()) < 20:
+            parts = ["### Yangilanishlar va tuzatishlar tavsifi\n"]
             if created_files or changed_files:
-                parts = ["### Workspace Updates Completed\n"]
+                parts.append("Loyiha doirasida kiritilgan o'zgarishlar va ularning vazifasi:")
                 if changed_files:
-                    parts.append("**Modified Files:**")
+                    parts.append("\n**Tahrirlangan fayllar:**")
                     for cf in changed_files:
                         parts.append(f"- {cf}")
                 if created_files:
-                    parts.append("\n**Created Files:**")
+                    parts.append("\n**Yaratilgan fayllar:**")
                     for crf in created_files:
                         parts.append(f"- `{crf}`")
                 if pending_commands:
-                    parts.append("\n**Proposed Commands:**")
+                    parts.append("\n**Loyihani ishga tushirish:**")
                     for pc in pending_commands:
-                        parts.append(f"- `{pc.get('command')}`")
-                user_friendly_summary = "\n".join(parts)
+                        parts.append(f"- `{pc.get('command')}` buyrug'i tayyorlandi.")
             elif pending_commands:
-                user_friendly_summary = f"I have formulated the required action. The proposed command is ready for your review: `{pending_commands[0].get('command')}`"
+                parts.append(f"Loyihani ishga tushirish uchun quyidagi buyruq tayyorlandi:\n- `{pending_commands[0].get('command')}`")
             elif inspected_files:
-                user_friendly_summary = f"I have inspected the requested files ({', '.join(inspected_files)}) and verified their contents in the workspace."
-            elif thought_combined:
-                user_friendly_summary = f"Workflow completed:\n\n{thought_combined}"
+                parts.append(f"Quyidagi fayllar tekshirildi va tahlil qilindi: {', '.join(inspected_files)}.")
             else:
-                user_friendly_summary = "Operation completed successfully."
+                parts.append("Topshiriq muvaffaqiyatli bajarildi.")
+            user_friendly_summary = "\n".join(parts)
 
         files_changes = {
             "created": created_files,

@@ -167,11 +167,25 @@ export function useAgentWorkflow({
       updateAgentState(convId, null);
       let replyText = pendingReply;
       if (!replyText || replyText.trim() === "") {
-        const doneActions = (updatedSteps || []).filter((s) => s.status === "done" && s.id !== "init_thinking");
-        if (doneActions.length > 0) {
-          replyText = "### Workspace Execution Completed\n\n" + doneActions.map((s) => `- **${s.title}**: ${s.subtitle || s.description || ""}`).join("\n");
+        const fileActions = (executedActions || []).filter((a) => ["create_file", "replace_block"].includes(a.action));
+        const cmdActions = (executedActions || []).filter((a) => a.action === "cmd_command");
+        if (fileActions.length > 0 || cmdActions.length > 0) {
+          const lines = ["### Loyiha yangilanishlari va tekshiruv yakunlandi\n"];
+          if (fileActions.length > 0) {
+            lines.push("**Qilingan o'zgarishlar:**");
+            fileActions.forEach((a) => {
+              lines.push(`- \`${a.target}\`: ${a.action === "create_file" ? "Fayl yaratildi va to'liq kod joylashtirildi" : "Kod bloklari yangilandi"}`);
+            });
+          }
+          if (cmdActions.length > 0) {
+            lines.push("\n**Ishga tushirish buyrug'i:**");
+            cmdActions.forEach((c) => {
+              lines.push(`- \`${c.command || c.target}\``);
+            });
+          }
+          replyText = lines.join("\n");
         } else {
-          replyText = "Topshiriq muvaffaqiyatli bajarildi.";
+          replyText = "Topshiriq muvaffaqiyatli bajarildi va loyiha tekshirildi.";
         }
       }
       const tokensHeader = cycleTokens?.total ? `<!--tokens:${JSON.stringify(cycleTokens)}-->\n` : "";
