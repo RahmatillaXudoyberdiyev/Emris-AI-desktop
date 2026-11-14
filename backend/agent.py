@@ -310,12 +310,13 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
 
             if not tool_calls:
                 has_mutations = any(a.get("action") in ("create_file", "replace_block", "cmd_command") for a in executed_actions)
-                if turn_idx == 1 and not has_mutations:
+                is_query = bool(re.search(r"\b(?:what|why|how|explain|qanday|nima|nimani|ko'rsat|tushuntir|qilding|qilingan|holat|status|describe|tell)\b", prompt, re.IGNORECASE))
+                if turn_idx == 1 and not has_mutations and not is_query and len(text_resp.strip()) < 80:
                     contents.append({"role": "model", "parts": parts if parts else [{"text": text_resp}]})
                     contents.append({
                         "role": "user",
                         "parts": [{
-                            "text": "You have not called any tool functions. You MUST call 'create_file', 'replace_block', or 'cmd_command' now to implement the requested solution on disk. Do not simply describe what to do. Call the tool functions directly."
+                            "text": "Please inspect or implement the requested workspace solution using the available tools directly."
                         }]
                     })
                     continue
@@ -532,7 +533,34 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     is_new_install = "install" in cmd_str.lower()
                     is_verification_test = bool(re.search(r"python(?:\.exe)?\s+-c\s+[\"']import\b", cmd_str, re.IGNORECASE))
 
-                    if already_queued or (has_install_queued and is_new_install) or is_verification_test:
+                    has_mutated_files = any(a.get("action") in ("create_file", "replace_block") and a.get("result", {}).get("success") for a in executed_actions)
+                    try:
+                        from backend.terminal import get_active_shell_processes
+                    except ImportError:
+                        from terminal import get_active_shell_processes
+                    active_sh = get_active_shell_processes()
+                    is_already_active_in_bg = False
+                    for proc_item in active_sh:
+                        p_cwd = proc_item.get("cwd", "")
+                        if p_cwd and os.path.abspath(p_cwd) == os.path.abspath(effective_workspace):
+                            p_cmd = proc_item.get("command", "").lower()
+                            if ("bot.py" in cmd_str.lower() and "bot.py" in p_cmd) or ("main.py" in cmd_str.lower() and "main.py" in p_cmd) or ("app.py" in cmd_str.lower() and "app.py" in p_cmd):
+                                is_already_active_in_bg = True
+                                break
+
+                    if is_already_active_in_bg and not has_mutated_files:
+                        response_parts.append({
+                            "functionResponse": {
+                                "name": "cmd_command",
+                                "id": call_id,
+                                "response": {
+                                    "status": "already_running",
+                                    "command": cmd_str,
+                                    "message": f"The process '{cmd_str}' is ALREADY running actively in the background. Since no files were modified in this turn, re-running is unnecessary. Do not propose running it again. Finalize your response directly to the user."
+                                }
+                            }
+                        })
+                    elif already_queued or (has_install_queued and is_new_install) or is_verification_test:
                         response_parts.append({
                             "functionResponse": {
                                 "name": "cmd_command",

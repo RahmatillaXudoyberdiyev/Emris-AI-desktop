@@ -166,27 +166,35 @@ export function useAgentWorkflow({
       };
       updateAgentState(convId, null);
       let replyText = pendingReply;
-      if (!replyText || replyText.trim() === "") {
+      const strippedReply = (replyText || "").replace(/<!--files_changes:[\s\S]*?-->/g, "").trim();
+      if (!strippedReply || strippedReply === "") {
         const fileActions = (executedActions || []).filter((a) => ["create_file", "replace_block"].includes(a.action));
         const cmdActions = (executedActions || []).filter((a) => a.action === "cmd_command");
-        if (fileActions.length > 0 || cmdActions.length > 0) {
-          const lines = ["### Loyiha yangilanishlari va tekshiruv yakunlandi\n"];
-          if (fileActions.length > 0) {
-            lines.push("**Qilingan o'zgarishlar:**");
-            fileActions.forEach((a) => {
-              lines.push(`- \`${a.target}\`: ${a.action === "create_file" ? "Fayl yaratildi va to'liq kod joylashtirildi" : "Kod bloklari yangilandi"}`);
-            });
-          }
-          if (cmdActions.length > 0) {
-            lines.push("\n**Ishga tushirish buyrug'i:**");
-            cmdActions.forEach((c) => {
-              lines.push(`- \`${c.command || c.target}\``);
-            });
-          }
-          replyText = lines.join("\n");
-        } else {
-          replyText = "Topshiriq muvaffaqiyatli bajarildi va loyiha tekshirildi.";
+        const readActions = (executedActions || []).filter((a) => a.action === "read_file");
+        const lines = ["### Loyiha yangilanishlari va tekshiruv yakunlandi\n"];
+        if (fileActions.length > 0) {
+          lines.push("**Qilingan o'zgarishlar:**");
+          fileActions.forEach((a) => {
+            lines.push(`- \`${a.target}\`: ${a.action === "create_file" ? "Fayl yaratildi va to'liq kod joylashtirildi" : "Kod bloklari yangilandi"}`);
+          });
         }
+        if (readActions.length > 0 && fileActions.length === 0) {
+          lines.push("**Tekshirilgan fayllar:**");
+          readActions.forEach((r) => {
+            lines.push(`- \`${r.target}\`: Fayl tuzilishi va kod mantig'i ko'rib chiqildi`);
+          });
+        }
+        if (cmdActions.length > 0) {
+          lines.push("\n**Ishga tushirish:**");
+          cmdActions.forEach((c) => {
+            lines.push(`- \`${c.command || c.target}\` buyrug'i tekshirildi`);
+          });
+        }
+        if (fileActions.length === 0 && cmdActions.length === 0 && readActions.length === 0) {
+          lines.push("Barcha talablar muvaffaqiyatli ko'rib chiqildi va loyiha tekshirildi.");
+        }
+        const prefix = replyText && replyText.includes("<!--files_changes:") ? replyText.slice(0, replyText.indexOf("-->") + 3) + "\n" : "";
+        replyText = prefix + lines.join("\n");
       }
       const tokensHeader = cycleTokens?.total ? `<!--tokens:${JSON.stringify(cycleTokens)}-->\n` : "";
       const persisted = `${tokensHeader}<!--workflow:${JSON.stringify(completedWorkflow)}-->\n${replyText}`;

@@ -123,7 +123,11 @@ def generate_with_gemini_direct(prompt: str, model: str = "gemini-3.5-flash-lite
         with urllib.request.urlopen(req, timeout=45) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             candidate = data.get("candidates", [{}])[0]
-            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+            parts = candidate.get("content", {}).get("parts", [])
+            text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought") and not p.get("thoughtProcess")]
+            if not text_parts:
+                text_parts = [p.get("text", "") for p in parts if "text" in p]
+            text = "".join(text_parts).strip()
             usage = data.get("usageMetadata", {})
             tokens = {
                 "total": usage.get("totalTokenCount", 0),

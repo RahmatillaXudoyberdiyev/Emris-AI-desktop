@@ -370,6 +370,19 @@ def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> d
                         print(f"[Terminal] Stopping previous background process PID {old_proc.pid} in [{target_cwd}] before re-running...")
                         stop_shell_process(existing_pid)
 
+            if os.name == "nt":
+                try:
+                    script_match = re.search(r"([a-zA-Z0-9_\-]+\.py|[a-zA-Z0-9_\-]+\.js)", cmd_to_run)
+                    script_name = script_match.group(1) if script_match else None
+                    if script_name:
+                        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+                        ps_kill = f"Get-CimInstance Win32_Process | Where-Object {{ ($_.CommandLine -like '*{script_name}*') -and ($_.ProcessId -ne {os.getpid()}) }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"
+                        subprocess.run(["powershell", "-NoProfile", "-Command", ps_kill], capture_output=True, timeout=5, creationflags=flags)
+                except Exception as k_err:
+                    print(f"[Terminal] Process cleanup error: {k_err}")
+
+            time.sleep(1.2)
+
         print(f"[Terminal] Executing command in [{target_cwd}]: {cmd_to_run} (daemon: {is_daemon}, supervised: {requires_supervision})")
 
         creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
