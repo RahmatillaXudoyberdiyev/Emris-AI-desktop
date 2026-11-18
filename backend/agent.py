@@ -548,7 +548,57 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                                 is_already_active_in_bg = True
                                 break
 
-                    if is_already_active_in_bg and not has_mutated_files:
+                    is_inspection_cmd = bool(
+                        re.match(r"^(?:dir|ls|pwd|where|which|echo|cat|type)\b", cmd_str.strip(), re.IGNORECASE)
+                        or re.match(r"^git\s+(?:status|diff|log|branch|show)\b", cmd_str.strip(), re.IGNORECASE)
+                        or re.match(r"^(?:python|node|pip|npm)\s+(?:--version|-v|list|show)\b", cmd_str.strip(), re.IGNORECASE)
+                    )
+
+                    if is_inspection_cmd:
+                        res = execute_shell_command(cmd_str, effective_workspace)
+                        out_text = (res.get("stdout") or res.get("stderr") or "").strip()
+                        response_parts.append({
+                            "functionResponse": {
+                                "name": "cmd_command",
+                                "id": call_id,
+                                "response": {
+                                    "exit_code": res.get("exit_code", 0),
+                                    "stdout": out_text or "(Empty output)",
+                                    "stderr": res.get("stderr", "")
+                                }
+                            }
+                        })
+                        act_item = {
+                            "agent": "CLI Agent",
+                            "action": "cmd_command",
+                            "target": cmd_str,
+                            "command": cmd_str,
+                            "cwd": effective_workspace,
+                            "lines_added": 0,
+                            "lines_removed": 0,
+                            "result": {"exit_code": res.get("exit_code", 0), "output": out_text}
+                        }
+                        executed_actions.append(act_item)
+                        emit({
+                            "type": "step",
+                            "step": {
+                                "id": len(executed_actions) + 1,
+                                "task_id": f"TASK-{len(executed_actions) + 1:03d}",
+                                "phase": "Phase 1: Inspection & Commands",
+                                "agent": "CLI Agent",
+                                "model": "Gemini 3.5 Flash Lite",
+                                "title": f"Ran: {cmd_str[:35]}",
+                                "subtitle": "Inspected command output",
+                                "description": f"Command: {cmd_str}",
+                                "output": out_text or f"Exit code {res.get('exit_code', 0)}",
+                                "lines_added": 0,
+                                "lines_removed": 0,
+                                "tools": ["cli:run_command"],
+                                "pending_command": None,
+                                "status": "done"
+                            }
+                        })
+                    elif is_already_active_in_bg and not has_mutated_files:
                         response_parts.append({
                             "functionResponse": {
                                 "name": "cmd_command",
@@ -556,7 +606,7 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                                 "response": {
                                     "status": "already_running",
                                     "command": cmd_str,
-                                    "message": f"The process '{cmd_str}' is ALREADY running actively in the background. Since no files were modified in this turn, re-running is unnecessary. Do not propose running it again. Finalize your response directly to the user."
+                                    "message": f"The process '{cmd_str}' is ALREADY running actively in the background. Since no files were modified in this turn, re-running is unnecessary."
                                 }
                             }
                         })
@@ -568,14 +618,14 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                                 "response": {
                                     "status": "already_queued",
                                     "command": cmd_str,
-                                    "message": f"Terminal command '{cmd_str}' is already registered for execution. Do not repeat installation or verification commands. Complete remaining file edits or finish your turn."
+                                    "message": f"Terminal command '{cmd_str}' is already registered for execution. Complete remaining file edits."
                                 }
                             }
                         })
                     else:
-                        resp_msg = f"Command '{cmd_str}' has been queued for execution in the local environment upon workflow approval. Do NOT repeat installation or verification commands. Proceed to complete file modifications or finish your response."
-                        if is_new_install and not has_mutated_files:
-                            resp_msg = f"Command '{cmd_str}' has been queued. You MUST now call 'create_file' to synthesize all required application files (e.g. app.py, templates, static assets) before finishing your turn."
+                        resp_msg = f"Command '{cmd_str}' has been queued for execution in the local environment upon workflow approval."
+                        if not has_mutated_files:
+                            resp_msg += " You MUST call 'create_file' to synthesize all required application files (e.g. app.py, templates, static assets)."
                         response_parts.append({
                             "functionResponse": {
                                 "name": "cmd_command",
