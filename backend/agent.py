@@ -899,17 +899,11 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
         user_friendly_summary = sanitize_display_response(eng_text, effective_workspace)
 
         running_url = None
-        all_cmds_str = " ".join([c.get("command", "") for c in pending_commands] + [a.get("command", "") for a in executed_actions if a.get("action") == "cmd_command"])
-        if re.search(r"\b(?:5000|flask)\b", all_cmds_str, re.IGNORECASE):
-            running_url = "http://127.0.0.1:5000"
-        elif re.search(r"\b(?:8000|uvicorn|fastapi|http\.server)\b", all_cmds_str, re.IGNORECASE):
-            running_url = "http://127.0.0.1:8000"
-        elif re.search(r"\b(?:3000|next)\b", all_cmds_str, re.IGNORECASE):
-            running_url = "http://localhost:3000"
-        elif re.search(r"\b(?:5173|vite)\b", all_cmds_str, re.IGNORECASE):
-            running_url = "http://localhost:5173"
-        elif any(k in all_cmds_str.lower() for k in ["app.py", "server.py", "main.py"]):
-            running_url = "http://127.0.0.1:5000"
+        if not pending_commands:
+            for port in [5000, 8000, 3000, 5173, 8080]:
+                if check_local_port_active(port):
+                    running_url = f"http://127.0.0.1:{port}" if port not in (3000, 5173) else f"http://localhost:{port}"
+                    break
 
         if running_url and "http" not in user_friendly_summary.lower():
             user_friendly_summary = (user_friendly_summary.strip() + f"\n\n**Application is running at:** [{running_url}]({running_url})").strip()

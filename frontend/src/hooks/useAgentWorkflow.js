@@ -317,6 +317,22 @@ export function useAgentWorkflow({
           }
           return s;
         });
+        let runningUrl = null;
+        const cmdLower = (cmdObj.command || "").toLowerCase();
+        if (cmdLower.includes("5000") || cmdLower.includes("flask") || cmdLower.includes("app.py")) {
+          runningUrl = "http://127.0.0.1:5000";
+        } else if (cmdLower.includes("8000") || cmdLower.includes("uvicorn") || cmdLower.includes("fastapi")) {
+          runningUrl = "http://127.0.0.1:8000";
+        } else if (cmdLower.includes("3000") || cmdLower.includes("next")) {
+          runningUrl = "http://localhost:3000";
+        } else if (cmdLower.includes("5173") || cmdLower.includes("vite")) {
+          runningUrl = "http://localhost:5173";
+        }
+        let updatedReply = curr.pendingResponse;
+        if (runningUrl && updatedReply && !updatedReply.toLowerCase().includes(runningUrl)) {
+          updatedReply = (updatedReply.trim() + `\n\n**Application is running at:** [${runningUrl}](${runningUrl})`).trim();
+        }
+
         if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
         await delay(1200);
         await resumeWorkflowFromStep(
@@ -324,7 +340,7 @@ export function useAgentWorkflow({
           updatedSteps,
           stepIndex + 1,
           curr.actions || [],
-          curr.pendingResponse,
+          updatedReply,
           curr.workspaceRoot,
           curr.pendingTokens || null
         );
@@ -351,6 +367,22 @@ export function useAgentWorkflow({
           }
           return s;
         });
+        let runningUrl = null;
+        const cmdLower = (cmdObj.command || "").toLowerCase();
+        if (cmdLower.includes("5000") || cmdLower.includes("flask") || cmdLower.includes("app.py")) {
+          runningUrl = "http://127.0.0.1:5000";
+        } else if (cmdLower.includes("8000") || cmdLower.includes("uvicorn") || cmdLower.includes("fastapi")) {
+          runningUrl = "http://127.0.0.1:8000";
+        } else if (cmdLower.includes("3000") || cmdLower.includes("next")) {
+          runningUrl = "http://localhost:3000";
+        } else if (cmdLower.includes("5173") || cmdLower.includes("vite")) {
+          runningUrl = "http://localhost:5173";
+        }
+        let updatedReply = curr.pendingResponse;
+        if (runningUrl && updatedReply && !updatedReply.toLowerCase().includes(runningUrl)) {
+          updatedReply = (updatedReply.trim() + `\n\n**Application is running at:** [${runningUrl}](${runningUrl})`).trim();
+        }
+
         if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
         await delay(1200);
         await resumeWorkflowFromStep(
@@ -358,7 +390,7 @@ export function useAgentWorkflow({
           updatedSteps,
           stepIndex + 1,
           curr.actions || [],
-          curr.pendingResponse,
+          updatedReply,
           curr.workspaceRoot,
           curr.pendingTokens || null
         );
@@ -437,13 +469,6 @@ export function useAgentWorkflow({
         }
 
         await delay(600);
-
-        if (stepIndex + 1 >= nextSteps.length && (cmdObj.command.includes("install") || cmdObj.command.includes("npm i"))) {
-          const continuePrompt = `Command '${cmdObj.command}' completed successfully with exit code 0. Now continue: synthesize all remaining source files (app.py, templates, static), start the application server, and provide the complete user-friendly summary.`;
-          await delay(800);
-          await handleSubmitPrompt(continuePrompt, "gemini-3.5-flash-lite", "work", messages, activeConvId);
-          return;
-        }
 
         await resumeWorkflowFromStep(
           activeConvId,

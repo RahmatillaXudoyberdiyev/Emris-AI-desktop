@@ -5,6 +5,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from backend.process_manager import default_process_manager
 
 
 DISALLOWED_COMMAND_PATTERNS = [
@@ -51,10 +52,6 @@ SUPERVISED_COMMAND_PATTERNS = [
     r"\b(?:migrate|makemigrations|alembic)\b",
     r"\bgit\s+(?:clone|pull|push|commit|add|status|diff|checkout|branch)\b",
 ]
-
-active_processes = {}
-user_stopped_pids = set()
-background_errors = {}
 
 
 def normalize_command(command: str) -> tuple[str, bool]:
@@ -179,108 +176,20 @@ def is_daemon_command(command: str) -> bool:
         return False
 
 
-def _start_process_stream_readers(process, pid_key: str):
-    def read_stream(stream, target_list):
-        try:
-            for line in iter(stream.readline, ""):
-                if not line:
-                    break
-                clean_line = line.rstrip()
-                target_list.append(clean_line)
-                if len(target_list) > 300:
-                    del target_list[0:50]
-        except Exception:
-            pass
-        finally:
-            try:
-                stream.close()
-            except Exception:
-                pass
-
-    process._stdout_lines = []
-    process._stderr_lines = []
-    t1 = threading.Thread(target=read_stream, args=(process.stdout, process._stdout_lines), daemon=True)
-    t2 = threading.Thread(target=read_stream, args=(process.stderr, process._stderr_lines), daemon=True)
-    t1.start()
-    t2.start()
-
-    def monitor_crash():
-        try:
-            process.wait()
-            active_processes.pop(pid_key, None)
-            is_user_stopped = getattr(process, "_stopped_by_user", False) or str(process.pid) in user_stopped_pids or pid_key in user_stopped_pids
-            if not is_user_stopped:
-                rc = process.returncode
-                if rc is not None and rc != 0:
-                    err_text = "\n".join(process._stderr_lines[-30:]) or "\n".join(process._stdout_lines[-30:])
-                    print(f"[Terminal Bot] Background task PID {process.pid} exited with error code {rc}")
-                    background_errors[pid_key] = {
-                        "pid": process.pid,
-                        "command": getattr(process, "_raw_cmd", ""),
-                        "cwd": getattr(process, "_raw_cwd", ""),
-                        "exit_code": rc,
-                        "error": err_text or f"Process exited unexpectedly with code {rc}",
-                        "timestamp": time.time()
-                    }
-        except Exception as exc:
-            print(f"[Terminal Bot] Monitor crash error: {exc}")
-
-    m_thread = threading.Thread(target=monitor_crash, daemon=True)
-    m_thread.start()
-
-
 def get_background_task_errors() -> list:
-    try:
-        return list(background_errors.values())
-    except Exception as exc:
-        print(f"[Terminal] get_background_task_errors error: {exc}")
-        return []
+    return default_process_manager.get_background_errors()
 
 
 def clear_background_error(process_id: str = None) -> bool:
-    try:
-        if process_id:
-            background_errors.pop(str(process_id), None)
-        else:
-            background_errors.clear()
-        return True
-    except Exception as exc:
-        print(f"[Terminal] clear_background_error error: {exc}")
-        return False
+    return default_process_manager.clear_background_error(process_id)
 
 
 def stop_shell_process(process_id: str = None) -> dict:
-    try:
-        stopped = []
-        target_keys = [str(process_id)] if process_id and str(process_id) in active_processes else list(active_processes.keys())
-        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-        for pid_key in target_keys:
-            proc = active_processes.get(pid_key)
-            if proc:
-                try:
-                    proc._stopped_by_user = True
-                    user_stopped_pids.add(str(proc.pid))
-                    user_stopped_pids.add(str(pid_key))
-                    subprocess.run(f"taskkill /F /T /PID {proc.pid}", shell=True, capture_output=True, creationflags=flags)
-                    stopped.append(pid_key)
-                except Exception as k_err:
-                    print(f"[Terminal] Kill error on PID {proc.pid}: {k_err}")
-                active_processes.pop(pid_key, None)
-                background_errors.pop(pid_key, None)
-        print(f"[Terminal] Stopped active processes by user: {stopped}")
-        return {"success": True, "stopped": stopped, "stopped_by_user": True}
-    except Exception as exc:
-        print(f"[Terminal] stop_shell_process error: {exc}")
-        return {"success": False, "error": str(exc), "stopped_by_user": False}
+    return default_process_manager.stop_process(process_id)
 
 
 def check_local_port_active(port: int) -> bool:
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.12)
-            return s.connect_ex(("127.0.0.1", port)) == 0
-    except Exception:
-        return False
+    return default_process_manager.check_port_active(port)
 
 
 def get_workspace_background_context(workspace_root: str = None) -> str:
@@ -300,7 +209,7 @@ def get_workspace_background_context(workspace_root: str = None) -> str:
         ]
         listening = []
         for port, service in common_ports:
-            if check_local_port_active(port):
+            if default_process_manager.check_port_active(port):
                 listening.append(f"- Listening Service on port {port}: {service} (http://127.0.0.1:{port})")
 
         if not lines and not listening:
@@ -318,29 +227,28 @@ def get_workspace_background_context(workspace_root: str = None) -> str:
 
 
 def get_active_shell_processes() -> list:
-    try:
-        active = []
-        for pid_key in list(active_processes.keys()):
-            proc = active_processes.get(pid_key)
-            if proc and proc.poll() is None:
-                active.append({
-                    "process_id": pid_key,
-                    "pid": proc.pid,
-                    "command": getattr(proc, "_raw_cmd", f"PID {proc.pid}"),
-                    "cwd": getattr(proc, "_raw_cwd", ""),
-                    "start_time": getattr(proc, "_start_time", time.time()),
-                    "is_daemon": getattr(proc, "_is_daemon", False),
-                    "requires_supervision": getattr(proc, "_requires_supervision", False)
-                })
-            elif proc:
-                active_processes.pop(pid_key, None)
-        return active
-    except Exception as exc:
-        print(f"[Terminal] get_active_shell_processes error: {exc}")
-        return []
+    return default_process_manager.get_active_processes()
 
 
-def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> dict:
+def detect_target_port(command: str) -> int:
+    m = re.search(r"--port(?:=|\s+)(\d+)", command, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"-p\s+(\d+)", command, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    if "5000" in command or "flask" in command.lower():
+        return 5000
+    if "8000" in command or "uvicorn" in command.lower() or "fastapi" in command.lower():
+        return 8000
+    if "3000" in command or "next" in command.lower():
+        return 3000
+    if "5173" in command or "vite" in command.lower():
+        return 5173
+    return None
+
+
+def execute_shell_command(command: str, cwd: str = None, timeout: int = 120) -> dict:
     try:
         safe, reason = is_command_safe(command)
         if not safe:
@@ -361,133 +269,14 @@ def execute_shell_command(command: str, cwd: str = None, timeout: int = 60) -> d
         is_daemon = explicit_bg or mode.get("is_daemon", False)
         requires_supervision = mode.get("requires_supervision", True) and not explicit_bg
 
-        if is_daemon:
-            for existing_pid in list(active_processes.keys()):
-                old_proc = active_processes.get(existing_pid)
-                if old_proc and old_proc.poll() is None:
-                    old_cwd = getattr(old_proc, "_raw_cwd", "")
-                    if target_cwd and old_cwd and os.path.abspath(old_cwd) == os.path.abspath(target_cwd):
-                        print(f"[Terminal] Stopping previous background process PID {old_proc.pid} in [{target_cwd}] before re-running...")
-                        stop_shell_process(existing_pid)
-
-            if os.name == "nt":
-                try:
-                    script_match = re.search(r"([a-zA-Z0-9_\-]+\.py|[a-zA-Z0-9_\-]+\.js)", cmd_to_run)
-                    script_name = script_match.group(1) if script_match else None
-                    if script_name:
-                        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-                        ps_kill = f"Get-CimInstance Win32_Process | Where-Object {{ ($_.CommandLine -like '*{script_name}*') -and ($_.ProcessId -ne {os.getpid()}) }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"
-                        subprocess.run(["powershell", "-NoProfile", "-Command", ps_kill], capture_output=True, timeout=5, creationflags=flags)
-                except Exception as k_err:
-                    print(f"[Terminal] Process cleanup error: {k_err}")
-
-            time.sleep(1.2)
+        target_port = detect_target_port(cmd_to_run)
 
         print(f"[Terminal] Executing command in [{target_cwd}]: {cmd_to_run} (daemon: {is_daemon}, supervised: {requires_supervision})")
 
-        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-        process = subprocess.Popen(
-            cmd_to_run,
-            shell=True,
-            cwd=target_cwd,
-            env=proc_env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=creationflags
-        )
-        process._raw_cmd = raw_cmd
-        process._raw_cwd = target_cwd
-        process._start_time = time.time()
-        process._is_daemon = is_daemon
-        process._requires_supervision = requires_supervision
-        process._stopped_by_user = False
-        pid_key = str(process.pid)
-        active_processes[pid_key] = process
-
         if is_daemon:
-            _start_process_stream_readers(process, pid_key)
-            time.sleep(1.8)
-            poll_res = process.poll()
-            if poll_res is None:
-                print(f"[Terminal] Background task active (PID {process.pid}): {cmd_to_run} (unsupervised)")
-                initial_out = "\n".join(process._stdout_lines[-10:])
-                return {
-                    "success": True,
-                    "stdout": (f"Background process active (PID: {process.pid})\nCommand: {cmd_to_run}\n" + (f"\n{initial_out}" if initial_out else "")).strip(),
-                    "stderr": "",
-                    "exit_code": 0,
-                    "process_id": pid_key,
-                    "is_running": True,
-                    "is_daemon": True,
-                    "requires_supervision": False,
-                    "stopped_by_user": False
-                }
-            else:
-                active_processes.pop(pid_key, None)
-                out = "\n".join(process._stdout_lines)
-                err = "\n".join(process._stderr_lines)
-                was_stopped = getattr(process, "_stopped_by_user", False) or pid_key in user_stopped_pids or str(process.pid) in user_stopped_pids
-                if was_stopped:
-                    return {
-                        "success": True,
-                        "stdout": "Process stopped by user.",
-                        "stderr": "",
-                        "exit_code": 0,
-                        "process_id": pid_key,
-                        "is_running": False,
-                        "stopped_by_user": True
-                    }
-                return {
-                    "success": process.returncode == 0,
-                    "stdout": out.strip(),
-                    "stderr": err.strip(),
-                    "exit_code": process.returncode,
-                    "process_id": pid_key,
-                    "is_running": False,
-                    "is_daemon": True,
-                    "requires_supervision": False,
-                    "stopped_by_user": False
-                }
-
-        stdout, stderr = process.communicate(timeout=timeout)
-        active_processes.pop(pid_key, None)
-        was_stopped = getattr(process, "_stopped_by_user", False) or pid_key in user_stopped_pids or str(process.pid) in user_stopped_pids
-        if was_stopped:
-            return {
-                "success": True,
-                "stdout": "Process stopped by user.",
-                "stderr": "",
-                "exit_code": 0,
-                "process_id": pid_key,
-                "is_running": False,
-                "stopped_by_user": True
-            }
-
-        stdout = stdout or ""
-        stderr = stderr or ""
-        print(f"[Terminal] Supervised command completed with exit code: {process.returncode}")
-
-        return {
-            "success": process.returncode == 0,
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": process.returncode,
-            "process_id": pid_key,
-            "is_running": False,
-            "is_daemon": False,
-            "requires_supervision": True,
-            "stopped_by_user": False
-        }
-    except subprocess.TimeoutExpired:
-        print(f"[Terminal] Command timed out after {timeout} seconds: {command}")
-        return {
-            "success": False,
-            "stdout": "",
-            "stderr": f"Execution timed out ({timeout}s)",
-            "exit_code": 124,
-            "stopped_by_user": False
-        }
+            return default_process_manager.start_daemon(cmd_to_run, target_cwd, proc_env, raw_cmd, target_port=target_port)
+        else:
+            return default_process_manager.execute_supervised(cmd_to_run, target_cwd, proc_env, raw_cmd, timeout=timeout)
     except Exception as exc:
         print(f"[Terminal] Execution error: {exc}")
         return {
