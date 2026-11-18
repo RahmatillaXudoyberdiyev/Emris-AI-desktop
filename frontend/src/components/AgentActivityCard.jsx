@@ -101,7 +101,8 @@ export default function AgentActivityCard({
   onApproveCommand,
   onRejectCommand,
   onContinueAnyway,
-  approvingStepId
+  approvingStepId,
+  onAskCommand
 }) {
   const [isExpanded, setIsExpanded] = useState(Boolean(isRunning));
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -109,6 +110,7 @@ export default function AgentActivityCard({
   const allSteps = plan?.steps || [];
   const hasError = allSteps.some((s) => s.status === "error");
   const hasPendingApproval = allSteps.some((s) => s.pending_command?.pending_approval);
+  const firstPendingStepId = allSteps.find((s) => s.pending_command?.pending_approval)?.id;
 
   useEffect(() => {
     let timer = null;
@@ -388,49 +390,71 @@ export default function AgentActivityCard({
                     )}
 
                     {cmdInfo.pending_approval && onApproveCommand && (
-                      <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                        {approvingStepId === st.id ? (
+                      st.id === firstPendingStepId ? (
+                        <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                          {approvingStepId === st.id ? (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await desktopApi.stopCommand();
+                                } catch (err) {
+                                  console.error("[AgentActivityCard] Stop command error:", err);
+                                }
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer"
+                            >
+                              <i className="fa-solid fa-stop text-[9px]"></i>
+                              <span>Stop Execution</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={Boolean(approvingStepId)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onApproveCommand(cmdInfo, st.id);
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <i className="fa-solid fa-play text-[9px]"></i>
+                              <span>Approve & Run</span>
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await desktopApi.stopCommand();
-                              } catch (err) {
-                                console.error("[AgentActivityCard] Stop command error:", err);
-                              }
-                            }}
-                            className="px-3.5 py-1.5 rounded-lg bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer"
-                          >
-                            <i className="fa-solid fa-stop text-[9px]"></i>
-                            <span>Stop Execution</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={Boolean(approvingStepId)}
+                            disabled={approvingStepId === st.id || Boolean(approvingStepId)}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onApproveCommand(cmdInfo, st.id);
+                              if (onRejectCommand) onRejectCommand(cmdInfo, st.id);
                             }}
-                            className="px-3.5 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white font-medium text-xs flex items-center gap-1.5 shadow transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-[#cbd5e1] text-xs font-medium transition-colors cursor-pointer disabled:opacity-40"
                           >
-                            <i className="fa-solid fa-play text-[9px]"></i>
-                            <span>Approve & Run</span>
+                            <span>Skip</span>
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          disabled={approvingStepId === st.id || Boolean(approvingStepId)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onRejectCommand) onRejectCommand(cmdInfo, st.id);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-[#cbd5e1] text-xs font-medium transition-colors cursor-pointer disabled:opacity-40"
-                        >
-                          <span>Skip</span>
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            disabled={approvingStepId === st.id || Boolean(approvingStepId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onAskCommand) {
+                                onAskCommand(cmdInfo, st.id);
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-[#38bdf8] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
+                            title="Ask AI about this command"
+                          >
+                            <i className="fa-solid fa-circle-question text-[10px]"></i>
+                            <span>Ask</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 pt-1 text-xs text-[#71717a] font-mono italic">
+                          <i className="fa-solid fa-clock text-[10px] text-[#fbbf24]"></i>
+                          <span>Queued • Awaiting previous command to complete</span>
+                        </div>
+                      )
                     )}
                   </div>
                 )}

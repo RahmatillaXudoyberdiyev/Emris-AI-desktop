@@ -97,6 +97,8 @@ def prepare_virtualenv_execution(command: str, cwd: str) -> tuple[str, dict]:
     env["VIRTUAL_ENV"] = str(venv_dir)
 
     rewritten = command.strip()
+    if "-m venv" in rewritten.lower():
+        return command, env
     sep = "\\" if os.name == "nt" else "/"
 
     for tool in ["python", "pip", "flask", "pytest", "uvicorn"]:

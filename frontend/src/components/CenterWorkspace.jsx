@@ -63,6 +63,20 @@ export default function CenterWorkspace({
     }
   };
 
+  const handleAskCommand = (cmdInfo) => {
+    try {
+      const cmdStr = cmdInfo?.command || "";
+      const askPrompt = `What does this command do and is it safe to run? "${cmdStr}"`;
+      setPromptText(askPrompt);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.style.height = "auto";
+      }
+    } catch (err) {
+      console.error("[Workspace] Ask command error:", err);
+    }
+  };
+
   const handleFormSubmit = (e) => {
     try {
       if (e) {
@@ -140,6 +154,7 @@ export default function CenterWorkspace({
                   onRejectCommand={onRejectCommand}
                   onContinueAnyway={onContinueAnyway}
                   approvingStepId={approvingStepId}
+                  onAskCommand={handleAskCommand}
                 />
               </div>
             )}
