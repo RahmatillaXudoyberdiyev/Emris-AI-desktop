@@ -573,6 +573,9 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                             }
                         })
                     else:
+                        resp_msg = f"Command '{cmd_str}' has been queued for execution in the local environment upon workflow approval. Do NOT repeat installation or verification commands. Proceed to complete file modifications or finish your response."
+                        if is_new_install and not has_mutated_files:
+                            resp_msg = f"Command '{cmd_str}' has been queued. You MUST now call 'create_file' to synthesize all required application files (e.g. app.py, templates, static assets) before finishing your turn."
                         response_parts.append({
                             "functionResponse": {
                                 "name": "cmd_command",
@@ -580,7 +583,7 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                                 "response": {
                                     "status": "queued_for_approval",
                                     "command": cmd_str,
-                                    "message": f"Command '{cmd_str}' has been queued for execution in the local environment upon workflow approval. Do NOT repeat installation or verification commands. Proceed to complete file modifications or finish your response."
+                                    "message": resp_msg
                                 }
                             }
                         })
@@ -712,16 +715,16 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     f"User Request / Goal:\n{prompt}\n\n"
                     f"Workspace Operations Executed:\n{actions_summary_str}\n\n"
                     f"Internal Technical Thoughts & Strategy:\n{thought_str[:1500]}\n\n"
-                    "Now write a comprehensive, human-friendly, professional final explanation for the user:\n"
-                    "1. Root Cause Analysis (What was wrong): Explain what was causing the bug, issue, or limitation in the previous implementation with clear technical reasoning.\n"
-                    "2. How It Was Fixed: Explain what you changed and why this resolves the issue cleanly and effectively.\n"
-                    "3. Files & Changes: Summarize the files created or modified and the key logic introduced.\n"
-                    "4. Verification & Testing: Provide exact steps or commands to run and test the application.\n\n"
+                    "Now write a comprehensive, warm, human-friendly, and professional final explanation for the user:\n"
+                    "- Solution & Architecture Overview: Clearly explain what was built, fixed, or configured according to the user goals.\n"
+                    "- Key Features & Implementation: Detail the architecture, endpoints, routes, components, and capabilities provided.\n"
+                    "- Files & Changes: Summarize every file created or modified and explain what each file does.\n"
+                    "- How to Run, Test & Access: Provide clear instructions, URLs (e.g. http://127.0.0.1:5000), and commands to run, test, and interact with the application.\n\n"
                     "Requirements:\n"
-                    "- Respond in the same language as the user's prompt (Uzbek, Russian, or English).\n"
-                    "- Write in a warm, insightful, collaborative tone (like a senior tech lead).\n"
+                    "- Respond in the exact same language as the user's prompt (Uzbek, Russian, or English).\n"
+                    "- Write in a warm, insightful, encouraging, and collaborative tone (like a senior software architect presenting a finished solution).\n"
                     "- Do NOT output raw step titles, logs, or robotic bullet lists like 'Thought: Formulating Execution Strategy'.\n"
-                    "- Use clean, standard Markdown with clear headings."
+                    "- Use clean, standard Markdown with clear headings and formatting."
                 )
 
                 summary_res = request_generate(synthesis_prompt, model=model)

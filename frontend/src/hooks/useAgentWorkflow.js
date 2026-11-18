@@ -191,7 +191,15 @@ export function useAgentWorkflow({
           });
         }
         if (fileActions.length === 0 && cmdActions.length === 0 && readActions.length === 0) {
-          lines.push("Barcha talablar muvaffaqiyatli ko'rib chiqildi va loyiha tekshirildi.");
+          const doneSteps = (updatedSteps || []).filter((s) => s.status === "done" && s.id !== "init_thinking");
+          if (doneSteps.length > 0) {
+            lines.push("Bajarilgan amallar tavsifi:");
+            doneSteps.forEach((s) => {
+              lines.push(`- **${s.title}**: ${s.output || s.subtitle || s.description || "Bajarildi"}`);
+            });
+          } else {
+            lines.push("Barcha talablar muvaffaqiyatli ko'rib chiqildi va loyiha tekshirildi.");
+          }
         }
         const prefix = replyText && replyText.includes("<!--files_changes:") ? replyText.slice(0, replyText.indexOf("-->") + 3) + "\n" : "";
         replyText = prefix + lines.join("\n");
@@ -310,6 +318,7 @@ export function useAgentWorkflow({
           return s;
         });
         if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
+        await delay(1200);
         await resumeWorkflowFromStep(
           activeConvId,
           updatedSteps,
@@ -343,6 +352,7 @@ export function useAgentWorkflow({
           return s;
         });
         if (setFileRefreshTrigger) setFileRefreshTrigger((prev) => prev + 1);
+        await delay(1200);
         await resumeWorkflowFromStep(
           activeConvId,
           updatedSteps,
@@ -424,6 +434,15 @@ export function useAgentWorkflow({
             }
           };
           nextSteps = [...updatedSteps, dynRerunStep];
+        }
+
+        await delay(600);
+
+        if (stepIndex + 1 >= nextSteps.length && (cmdObj.command.includes("install") || cmdObj.command.includes("npm i"))) {
+          const continuePrompt = `Command '${cmdObj.command}' completed successfully with exit code 0. Now continue: synthesize all remaining source files (app.py, templates, static), start the application server, and provide the complete user-friendly summary.`;
+          await delay(800);
+          await handleSubmitPrompt(continuePrompt, "gemini-3.5-flash-lite", "work", messages, activeConvId);
+          return;
         }
 
         await resumeWorkflowFromStep(

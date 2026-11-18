@@ -97,40 +97,6 @@ export default function ChatMessage({
                 {message.content}
               </div>
               <div className="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-[#3f3f46]/40 select-none">
-                {onOpenLocalHistory && (
-                  <button
-                    type="button"
-                    onClick={onOpenLocalHistory}
-                    className="text-[#a1a1aa] hover:text-[#f4f4f5] px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors opacity-75 hover:opacity-100"
-                    title="Local History"
-                  >
-                    <i className="fa-solid fa-clock-rotate-left text-[10px]"></i>
-                    <span className="hidden sm:inline text-[10px]">History</span>
-                  </button>
-                )}
-                {onRevertMessage && (
-                  <button
-                    type="button"
-                    onClick={() => onRevertMessage(message)}
-                    className="text-[#a1a1aa] hover:text-[#f59e0b] px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors opacity-75 hover:opacity-100"
-                    title="Undo workspace changes"
-                  >
-                    <i className="fa-solid fa-rotate-left text-[10px]"></i>
-                    <span className="hidden sm:inline text-[10px]">Undo</span>
-                  </button>
-                )}
-                {onRedoMessage && (
-                  <button
-                    type="button"
-                    onClick={() => onRedoMessage(message)}
-                    className="text-[#a1a1aa] hover:text-[#3b82f6] px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors opacity-75 hover:opacity-100"
-                    title="Redo reverted workspace changes"
-                  >
-                    <i className="fa-solid fa-rotate-right text-[10px]"></i>
-                    <span className="hidden sm:inline text-[10px]">Redo</span>
-                  </button>
-                )}
-                <div className="w-[1px] h-3 bg-[#3f3f46] mx-0.5 opacity-60"></div>
                 {onEditMessage && (
                   <button
                     type="button"

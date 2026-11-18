@@ -624,13 +624,26 @@ def sanitize_display_response(text: str, workspace_root: str = None) -> str:
 
 def detect_and_prepare_subfolder(prompt: str, workspace_root: str):
     try:
-        folder_match = re.search(r"(?:make|create|in)\s+([a-zA-Z0-9_\-]+)\s+(?:folder|directory)", prompt, re.IGNORECASE)
-        if folder_match:
-            sub = folder_match.group(1).strip()
-            if sub and not sub.lower() in ("a", "the", "new", "this"):
-                sub_path = Path(workspace_root) / sub
+        patterns = [
+            r"(?:make|create|in)\s+(?:a\s+)?(?:folder|directory)\s+(?:of\s+|called\s+|named\s+)?['\"]([^'\"]+)['\"]",
+            r"(?:make|create|in)\s+(?:a\s+)?(?:folder|directory)\s+(?:of\s+|called\s+|named\s+)?([a-zA-Z0-9_\-]+)",
+            r"(?:make|create|in)\s+['\"]([^'\"]+)['\"]\s+(?:folder|directory)",
+            r"(?:make|create|in)\s+([a-zA-Z0-9_\-]+)\s+(?:folder|directory)"
+        ]
+        sub = None
+        for pat in patterns:
+            m = re.search(pat, prompt, re.IGNORECASE)
+            if m:
+                cand = m.group(1).strip()
+                if cand and cand.lower() not in ("a", "the", "new", "this", "my", "project", "app"):
+                    sub = cand
+                    break
+        if sub:
+            sanitized = re.sub(r"[^\w\-]+", "_", sub).strip("_").lower()
+            if sanitized:
+                sub_path = Path(workspace_root) / sanitized
                 sub_path.mkdir(parents=True, exist_ok=True)
-                return str(sub_path), sub
+                return str(sub_path), sanitized
     except Exception as exc:
         print(f"[WorkspaceTools] detect_and_prepare_subfolder error: {exc}")
     return workspace_root, "."
