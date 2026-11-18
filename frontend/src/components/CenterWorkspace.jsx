@@ -125,7 +125,7 @@ export default function CenterWorkspace({
               />
             ))}
 
-            {agentState && (
+            {agentState && (agentState.isRunning || agentState.isInterrupted || agentState.plan?.steps?.some((s) => s.pending_command?.pending_approval)) && (
               <div className="w-full pt-1">
                 <AgentActivityCard
                   isRunning={agentState.isRunning}

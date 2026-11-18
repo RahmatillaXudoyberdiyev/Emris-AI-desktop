@@ -371,6 +371,8 @@ export const desktopApi = {
   },
 
   async runAgentWorkflowStream(prompt, workspaceRoot = null, model = "gemini-3.5-flash-lite", history = [], onEvent = null) {
+    let receivedAnyEvent = false;
+    let finalResult = null;
     try {
       const url = `${LOCAL_HTTP_BASE}/api/run_agent_stream`;
       const response = await fetch(url, {
@@ -386,7 +388,6 @@ export const desktopApi = {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let finalResult = null;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -401,11 +402,9 @@ export const desktopApi = {
             try {
               const jsonStr = trimmed.replace(/^data:\s*/, "");
               const parsed = JSON.parse(jsonStr);
+              receivedAnyEvent = true;
               if (parsed.type === "done") {
                 finalResult = parsed.result;
-                try {
-                  reader.cancel();
-                } catch (_) {}
                 return finalResult;
               } else if (onEvent) {
                 onEvent(parsed);
@@ -418,8 +417,16 @@ export const desktopApi = {
       }
 
       if (finalResult) return finalResult;
+      if (receivedAnyEvent) {
+        return { success: true, steps: [], actions: [], response: "Topshiriq muvaffaqiyatli yakunlandi." };
+      }
       return await this.runAgentWorkflow(prompt, workspaceRoot, model, history);
     } catch (err) {
+      if (finalResult) return finalResult;
+      if (receivedAnyEvent) {
+        console.warn("[API] Stream closed after events:", err);
+        return { success: true, steps: [], actions: [], response: "Topshiriq muvaffaqiyatli yakunlandi." };
+      }
       console.warn("[API] Stream fallback to standard API:", err);
       return await this.runAgentWorkflow(prompt, workspaceRoot, model, history);
     }

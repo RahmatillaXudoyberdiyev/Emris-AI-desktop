@@ -944,6 +944,7 @@ export function useAgentWorkflow({
       }
 
       await finalizeWorkflowCycle(convId, finalSteps, executedActions, agentResult?.response, agentResult?.tokens);
+      isSubmittingRef.current = false;
     } catch (error) {
       console.error("[useAgentWorkflow] Submit prompt error:", error);
       isSubmittingRef.current = false;
