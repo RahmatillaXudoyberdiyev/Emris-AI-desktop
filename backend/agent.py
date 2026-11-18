@@ -656,6 +656,8 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
                     })
 
             contents.append({"role": "user", "parts": response_parts})
+            if any(a.get("action") == "cmd_command" and a.get("pending_approval") for a in executed_actions):
+                break
 
         pkg_path = Path(effective_workspace) / "package.json"
         has_next = (Path(effective_workspace) / "app").exists() or (Path(effective_workspace) / "pages").exists()
@@ -691,54 +693,59 @@ def run_hierarchical_cycle(prompt: str, workspace_root: str = None, model: str =
         deleted_files = [a["target"] for a in executed_actions if a.get("action") == "delete_file" and a.get("result", {}).get("success")]
         inspected_files = [a["target"] for a in executed_actions if a.get("action") == "read_file" and a.get("result", {}).get("success")]
         pending_commands = [a for a in executed_actions if a.get("action") == "cmd_command"]
+        is_cmd_awaiting_approval = any(a.get("pending_approval") for a in pending_commands)
 
-        has_file_ops = bool(created_files or changed_files or deleted_files or pending_commands)
-        if not eng_text or len(eng_text.strip()) < 150 or (has_file_ops and len(eng_text.strip()) < 300):
-            try:
-                files_summary_list = []
-                for a in executed_actions:
-                    act = a.get("action")
-                    tgt = a.get("target", "")
-                    if act == "create_file" and a.get("result", {}).get("success"):
-                        files_summary_list.append(f"- Created file: `{tgt}` ({a.get('lines_added', 0)} lines)")
-                    elif act == "replace_block" and a.get("result", {}).get("success"):
-                        files_summary_list.append(f"- Modified file: `{tgt}` (replaced block L{a.get('l_start', 1)}-L{a.get('l_finish', 1)})")
-                    elif act == "read_file" and a.get("result", {}).get("success"):
-                        files_summary_list.append(f"- Inspected file: `{tgt}` (L{a.get('start_line', 1)}-L{a.get('end_line', '')})")
-                    elif act == "cmd_command":
-                        files_summary_list.append(f"- Proposed command: `{a.get('command', '')}`")
+        if is_cmd_awaiting_approval:
+            active_cmd_str = pending_commands[0].get("command", "")
+            eng_text = f"Command `{active_cmd_str}` has been proposed and is awaiting execution approval."
+        else:
+            has_file_ops = bool(created_files or changed_files or deleted_files or pending_commands)
+            if not eng_text or len(eng_text.strip()) < 150 or (has_file_ops and len(eng_text.strip()) < 300):
+                try:
+                    files_summary_list = []
+                    for a in executed_actions:
+                        act = a.get("action")
+                        tgt = a.get("target", "")
+                        if act == "create_file" and a.get("result", {}).get("success"):
+                            files_summary_list.append(f"- Created file: `{tgt}` ({a.get('lines_added', 0)} lines)")
+                        elif act == "replace_block" and a.get("result", {}).get("success"):
+                            files_summary_list.append(f"- Modified file: `{tgt}` (replaced block L{a.get('l_start', 1)}-L{a.get('l_finish', 1)})")
+                        elif act == "read_file" and a.get("result", {}).get("success"):
+                            files_summary_list.append(f"- Inspected file: `{tgt}` (L{a.get('start_line', 1)}-L{a.get('end_line', '')})")
+                        elif act == "cmd_command":
+                            files_summary_list.append(f"- Proposed command: `{a.get('command', '')}`")
 
-                actions_summary_str = "\n".join(files_summary_list) if files_summary_list else "Workspace files inspected."
-                thought_str = " ".join(thought_log).strip()
+                    actions_summary_str = "\n".join(files_summary_list) if files_summary_list else "Workspace files inspected."
+                    thought_str = " ".join(thought_log).strip()
 
-                synthesis_prompt = (
-                    f"User Request / Goal:\n{prompt}\n\n"
-                    f"Workspace Operations Executed:\n{actions_summary_str}\n\n"
-                    f"Internal Technical Thoughts & Strategy:\n{thought_str[:1500]}\n\n"
-                    "Now write a comprehensive, warm, human-friendly, and professional final explanation for the user:\n"
-                    "- Solution & Architecture Overview: Clearly explain what was built, fixed, or configured according to the user goals.\n"
-                    "- Key Features & Implementation: Detail the architecture, endpoints, routes, components, and capabilities provided.\n"
-                    "- Files & Changes: Summarize every file created or modified and explain what each file does.\n"
-                    "- How to Run, Test & Access: Provide clear instructions, URLs (e.g. http://127.0.0.1:5000), and commands to run, test, and interact with the application.\n\n"
-                    "Requirements:\n"
-                    "- Respond in the exact same language as the user's prompt (Uzbek, Russian, or English).\n"
-                    "- Write in a warm, insightful, encouraging, and collaborative tone (like a senior software architect presenting a finished solution).\n"
-                    "- Do NOT output raw step titles, logs, or robotic bullet lists like 'Thought: Formulating Execution Strategy'.\n"
-                    "- Use clean, standard Markdown with clear headings and formatting."
-                )
+                    synthesis_prompt = (
+                        f"User Request / Goal:\n{prompt}\n\n"
+                        f"Workspace Operations Executed:\n{actions_summary_str}\n\n"
+                        f"Internal Technical Thoughts & Strategy:\n{thought_str[:1500]}\n\n"
+                        "Now write a comprehensive, warm, human-friendly, and professional final explanation for the user:\n"
+                        "- Solution & Architecture Overview: Clearly explain what was built, fixed, or configured according to the user goals.\n"
+                        "- Key Features & Implementation: Detail the architecture, endpoints, routes, components, and capabilities provided.\n"
+                        "- Files & Changes: Summarize every file created or modified and explain what each file does.\n"
+                        "- How to Run, Test & Access: Provide clear instructions, URLs (e.g. http://127.0.0.1:5000), and commands to run, test, and interact with the application.\n\n"
+                        "Requirements:\n"
+                        "- Respond in the exact same language as the user's prompt (Uzbek, Russian, or English).\n"
+                        "- Write in a warm, insightful, encouraging, and collaborative tone (like a senior software architect presenting a finished solution).\n"
+                        "- Do NOT output raw step titles, logs, or robotic bullet lists like 'Thought: Formulating Execution Strategy'.\n"
+                        "- Use clean, standard Markdown with clear headings and formatting."
+                    )
 
-                summary_res = request_generate(synthesis_prompt, model=model)
-                if summary_res.get("success"):
-                    s_data = summary_res.get("data") or {}
-                    candidate_text = s_data.get("response") or s_data.get("text") or summary_res.get("text") or ""
-                    if candidate_text and len(candidate_text.strip()) > 50:
-                        eng_text = candidate_text.strip()
-                    s_tok = summary_res.get("tokens") or s_data.get("tokens") or {}
-                    total_tokens += s_tok.get("total", 0)
-                    prompt_tokens += s_tok.get("prompt", 0)
-                    completion_tokens += s_tok.get("completion", 0)
-            except Exception as synth_err:
-                print(f"[Agent] Synthesis summary error: {synth_err}")
+                    summary_res = request_generate(synthesis_prompt, model=model)
+                    if summary_res.get("success"):
+                        s_data = summary_res.get("data") or {}
+                        candidate_text = s_data.get("response") or s_data.get("text") or summary_res.get("text") or ""
+                        if candidate_text and len(candidate_text.strip()) > 50:
+                            eng_text = candidate_text.strip()
+                        s_tok = summary_res.get("tokens") or s_data.get("tokens") or {}
+                        total_tokens += s_tok.get("total", 0)
+                        prompt_tokens += s_tok.get("prompt", 0)
+                        completion_tokens += s_tok.get("completion", 0)
+                except Exception as synth_err:
+                    print(f"[Agent] Synthesis summary error: {synth_err}")
 
         formatted_steps = []
         step_id = 1
